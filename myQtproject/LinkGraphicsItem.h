@@ -1,45 +1,75 @@
 #pragma once
-#include "war_room_model.h"
-#include <QGraphicsItem>
+
+#include <QGraphicsObject>
 #include <QPainter>
 #include <QPen>
-#include <cmath>
 
-//class WarRoomModel;
-//using namespace warroom;
+#include "warroom_types.h"
+#include "war_link.h"
+
+// 前置声明
+namespace warroom {
+    class WarRoomModel;
+}
+
+/**
+ * @brief 连线图形项，负责将 WarLink 数据渲染为贝塞尔曲线。
+ *
+ * 连线颜色优先使用 link 的自定义颜色，否则根据 LinkType 回落默认色。
+ * 控制点计算独立封装，便于后续升级为更智能的路由算法。
+ */
 class LinkGraphicsItem : public QGraphicsObject
 {
     Q_OBJECT
 
 public:
-    LinkGraphicsItem(const std::string& linkId,
+    /**
+     * @param linkId 对应 WarLink::id
+     * @param model  只读模型引用，用于解析锚点坐标
+     * @param parent 父图形项
+     */
+    LinkGraphicsItem(const warroom::Uuid& linkId,
         const warroom::WarRoomModel& model,
         QGraphicsItem* parent = nullptr);
 
-    // 包围盒：覆盖整条曲线的可能范围
+    // ---- QGraphicsItem 接口 ----
     QRectF boundingRect() const override;
-
-    // 绘制
-    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
+    void paint(QPainter* painter,
+        const QStyleOptionGraphicsItem* option,
         QWidget* widget) override;
 
-    // 刷新端点位置（从模型重新解析锚点坐标）
+    // ---- 自有接口 ----
+    const warroom::Uuid& linkId() const { return m_linkId; }
+
+    /// 当模型数据变更后调用，重新解析锚点并刷新几何
     void updatePositions();
 
-    const std::string& linkId() const { return m_linkId; }
-
 private:
-    std::string m_linkId;
+    // ---- 颜色映射 ----
+    static QColor defaultColorForType(warroom::LinkType type);
+    static QColor highlightColor() { return QColor(100, 180, 255); }
+    
+    // ---- 路径构建 ----
+    QVector<QPointF> m_wayPoints;
+    void buildPath(QPainterPath& path) const;
+    
+    // ---- 贝塞尔控制点计算（便于独立替换） ----
+    struct BezierControl {
+        QPointF ctrl1;
+        QPointF ctrl2;
+    };
+    static BezierControl computeControlPoints(QPointF from, QPointF to);
+
+    // ---- 箭头 ----
+    static void arrowHeadPoints(const QPointF& tip,
+        const QPointF& fromDir,
+        QPointF& p1,
+        QPointF& p2);
+
+    // ---- 数据成员 ----
+    warroom::Uuid m_linkId;
     const warroom::WarRoomModel& m_model;
 
-    // 缓存的端点画布坐标
     QPointF m_startPoint;
     QPointF m_endPoint;
-
-    // 连线类型 → 颜色
-    static QColor colorForType(const std::string& type);
-
-    // 计算箭头三角形的三个点
-    static void arrowHead(const QPointF& tip, const QPointF& from,
-        QPointF& p1, QPointF& p2);
 };

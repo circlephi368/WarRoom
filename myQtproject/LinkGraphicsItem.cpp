@@ -1,6 +1,12 @@
 #include "LinkGraphicsItem.h"
 #include "war_room_model.h"
-LinkGraphicsItem::LinkGraphicsItem(const std::string& linkId,
+
+#include <cmath>
+
+// ---------------------------------------------------------------------------
+// 构造
+// ---------------------------------------------------------------------------
+LinkGraphicsItem::LinkGraphicsItem(const warroom::Uuid& linkId,
     const warroom::WarRoomModel& model,
     QGraphicsItem* parent)
     : QGraphicsObject(parent)
@@ -8,49 +14,80 @@ LinkGraphicsItem::LinkGraphicsItem(const std::string& linkId,
     , m_model(model)
 {
     setFlags(ItemIsSelectable);
-    setZValue(-1);  // 连线在节点下方
+    setZValue(-1);
     updatePositions();
 }
 
+// ---------------------------------------------------------------------------
+// boundingRect
+// ---------------------------------------------------------------------------
 QRectF LinkGraphicsItem::boundingRect() const
 {
-    // 包围盒略大于起止点形成的矩形
     QRectF rect(m_startPoint, m_endPoint);
-    return rect.normalized().adjusted(-50, -50, 50, 50);
+
+    // 把路径点也纳入包围盒
+    for (const auto& wp : m_wayPoints) {
+        rect = rect.united(QRectF(wp, QSizeF(1, 1)));
+    }
+
+    rect = rect.normalized();
+    return rect.adjusted(-60, -60, 60, 60);
 }
 
+// ---------------------------------------------------------------------------
+// 刷新端点
+// ---------------------------------------------------------------------------
 void LinkGraphicsItem::updatePositions()
 {
     prepareGeometryChange();
 
     const warroom::WarLink* link = m_model.getLink(m_linkId);
-    if (!link) return;
+    if (!link) {
+        m_startPoint = {};
+        m_endPoint = {};
+        m_wayPoints.clear();
+        return;
+    }
 
-    warroom::Point2D start = link->start_anchor->resolvePosition(m_model);
-    warroom::Point2D end = link->end_anchor->resolvePosition(m_model);
+    // 解析起点
+    warroom::Point2D s = link->start_anchor->resolvePosition(m_model);
+    m_startPoint = QPointF(s.x, s.y);
 
-    m_startPoint = QPointF(start.x, start.y);
-    m_endPoint = QPointF(end.x, end.y);
+    // 解析路径点
+    m_wayPoints.clear();
+    for (const auto& anchor : link->waypoints) {
+        warroom::Point2D p = anchor->resolvePosition(m_model);
+        m_wayPoints.append(QPointF(p.x, p.y));
+    }
+
+    // 解析终点
+    warroom::Point2D e = link->end_anchor->resolvePosition(m_model);
+    m_endPoint = QPointF(e.x, e.y);
 }
 
+// ---------------------------------------------------------------------------
+// 绘制
+// ---------------------------------------------------------------------------
 void LinkGraphicsItem::paint(QPainter* painter,
     const QStyleOptionGraphicsItem*,
     QWidget*)
 {
-    if (m_startPoint == m_endPoint) return;
+    if (m_startPoint == m_endPoint && m_wayPoints.isEmpty())
+        return;
 
     const warroom::WarLink* link = m_model.getLink(m_linkId);
-    if (!link) return;
+    if (!link)
+        return;
 
     painter->setRenderHint(QPainter::Antialiasing);
 
-    // 颜色
-    QColor color = colorForType("");
-    if (!link->color.empty())
-        color = QColor(QString::fromStdString(link->color));
+    // ----- 颜色 -----
+    QColor baseColor = link->color.empty()
+        ? defaultColorForType(link->type)
+        : QColor(QString::fromStdString(link->color));
 
-    // 线型
-    QPen pen(color, 2.0);
+    // ----- 画笔 -----
+    QPen pen(baseColor, 2.0);
     switch (link->type) {
     case warroom::LinkType::Inspiration:
         pen.setStyle(Qt::DashLine);
@@ -58,79 +95,113 @@ void LinkGraphicsItem::paint(QPainter* painter,
     case warroom::LinkType::Contradiction:
         pen.setWidth(3);
         break;
-    case warroom::LinkType::Negation:
-        pen.setColor(QColor("#e74c3c"));
-        pen.setWidth(2);
-        break;
     default:
         break;
     }
 
     if (isSelected()) {
-        pen.setColor(QColor(100, 180, 255));
+        pen.setColor(highlightColor());
         pen.setWidth(3);
     }
 
     painter->setPen(pen);
 
-    // 计算控制点（贝塞尔曲线）
-    QPointF delta = m_endPoint - m_startPoint;
-    double dist = std::sqrt(delta.x() * delta.x() + delta.y() * delta.y());
-    double offset = std::min(dist * 0.4, 120.0);
-
-    QPointF ctrl1(m_startPoint.x() + offset, m_startPoint.y());
-    QPointF ctrl2(m_endPoint.x() - offset, m_endPoint.y());
-
-    // 路径
+    // ----- 构建路径 -----
     QPainterPath path;
-    path.moveTo(m_startPoint);
-    path.cubicTo(ctrl1, ctrl2, m_endPoint);
+    buildPath(path);
+
     painter->drawPath(path);
 
-    // 箭头
-    QPointF tip = m_endPoint;
-    // 在曲线上取离终点很近的一点作为箭尾方向
-    double t = 0.98;
-    double mt = 1.0 - t;
-    QPointF nearTip(
-        mt * mt * mt * m_startPoint.x() + 3 * mt * mt * t * ctrl1.x() + 3 * mt * t * t * ctrl2.x() + t * t * t * m_endPoint.x(),
-        mt * mt * mt * m_startPoint.y() + 3 * mt * mt * t * ctrl1.y() + 3 * mt * t * t * ctrl2.y() + t * t * t * m_endPoint.y()
-    );
+    // ----- 箭头 -----
+    if (path.elementCount() >= 2) {
+        // 沿路径取靠近终点的一点作为箭尾方向
+        double t = (m_wayPoints.isEmpty()) ? 0.95 : 0.98;
+        QPointF nearTip = path.pointAtPercent(t);
+        QPointF tip = path.currentPosition();  // 路径终点
 
-    QPointF p1, p2;
-    arrowHead(tip, nearTip, p1, p2);
+        QPointF p1, p2;
+        arrowHeadPoints(tip, nearTip, p1, p2);
 
-    painter->setBrush(color);
-    painter->setPen(Qt::NoPen);
-    painter->drawPolygon(QPolygonF() << tip << p1 << p2);
+        painter->setBrush(pen.color());
+        painter->setPen(Qt::NoPen);
+        painter->drawPolygon(QPolygonF() << tip << p1 << p2);
+    }
 
-    // 标签
+    // ----- 标签 -----
     if (!link->label.empty()) {
         QPointF mid = path.pointAtPercent(0.5);
-        painter->setPen(QPen(QColor("#333333")));
+        painter->setPen(QColor("#333333"));
         painter->setFont(QFont("Microsoft YaHei", 9));
         painter->drawText(mid + QPointF(5, -5),
             QString::fromStdString(link->label));
     }
 }
 
-QColor LinkGraphicsItem::colorForType(const std::string&) {
+// ---------------------------------------------------------------------------
+// 构建路径：有路径点时沿路径点走折线，无路径点时画贝塞尔
+// ---------------------------------------------------------------------------
+void LinkGraphicsItem::buildPath(QPainterPath& path) const
+{
+    if (m_wayPoints.isEmpty()) {
+        // 无路径点 → 贝塞尔曲线
+        BezierControl ctrl = computeControlPoints(m_startPoint, m_endPoint);
+        path.moveTo(m_startPoint);
+        path.cubicTo(ctrl.ctrl1, ctrl.ctrl2, m_endPoint);
+    }
+    else {
+        // 有路径点 → 逐段直线（平滑升级可改此处）
+        path.moveTo(m_startPoint);
+        for (const auto& wp : m_wayPoints) {
+            path.lineTo(wp);
+        }
+        path.lineTo(m_endPoint);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 类型 → 默认颜色
+// ---------------------------------------------------------------------------
+QColor LinkGraphicsItem::defaultColorForType(warroom::LinkType type)
+{
+    switch (type) {
+    case warroom::LinkType::Dependency:     return QColor("#3498db");
+    case warroom::LinkType::Contradiction:  return QColor("#e67e22");
+    case warroom::LinkType::Transformation: return QColor("#2ecc71");
+    case warroom::LinkType::Inspiration:    return QColor("#9b59b6");
+    case warroom::LinkType::Negation:       return QColor("#e74c3c");
+    case warroom::LinkType::UsingMethod:    return QColor("#1abc9c");
+    }
     return QColor("#aaaaaa");
 }
 
-void LinkGraphicsItem::arrowHead(const QPointF& tip, const QPointF& from,
-    QPointF& p1, QPointF& p2)
+// ---------------------------------------------------------------------------
+// 贝塞尔控制点
+// ---------------------------------------------------------------------------
+LinkGraphicsItem::BezierControl
+LinkGraphicsItem::computeControlPoints(QPointF from, QPointF to)
+{
+    QPointF delta = to - from;
+    double dist = std::hypot(delta.x(), delta.y());
+    double offset = std::min(dist * 0.4, 120.0);
+
+    return { QPointF(from.x() + offset, from.y()),
+             QPointF(to.x() - offset, to.y()) };
+}
+
+// ---------------------------------------------------------------------------
+// 箭头三角形
+// ---------------------------------------------------------------------------
+void LinkGraphicsItem::arrowHeadPoints(const QPointF& tip,
+    const QPointF& from,
+    QPointF& p1,
+    QPointF& p2)
 {
     double angle = std::atan2(tip.y() - from.y(), tip.x() - from.x());
-    double arrowLen = 10.0;
-    double arrowAngle = 0.45;  // ~26度
+    constexpr double len = 10.0;
+    constexpr double spread = 0.45;
 
-    p1 = QPointF(
-        tip.x() - arrowLen * std::cos(angle - arrowAngle),
-        tip.y() - arrowLen * std::sin(angle - arrowAngle)
-    );
-    p2 = QPointF(
-        tip.x() - arrowLen * std::cos(angle + arrowAngle),
-        tip.y() - arrowLen * std::sin(angle + arrowAngle)
-    );
+    p1 = QPointF(tip.x() - len * std::cos(angle - spread),
+        tip.y() - len * std::sin(angle - spread));
+    p2 = QPointF(tip.x() - len * std::cos(angle + spread),
+        tip.y() - len * std::sin(angle + spread));
 }

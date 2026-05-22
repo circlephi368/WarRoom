@@ -7,7 +7,12 @@
 class QGraphicsScene;
 class QGraphicsView;
 class NodeGraphicsItem;
-
+struct NodeContext {
+    warroom::Uuid nodeId;
+    warroom::WarNode savedNode;
+    warroom::Uuid parentId;
+    int index;
+};
 class WarRoomMainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -35,4 +40,11 @@ private:
     QGraphicsView* m_view = nullptr;
 
     warroom::WarRoomModel m_model;   // 提升为成员
+
+    //辅助函数，获取删除节点所需的信息
+    NodeContext captureNodeContext(const warroom::Uuid& nodeId);
+    void deleteSelectedNode();
+    void addNodeAtPosition(QPointF scenePos);
+    void editNode(const std::string& nodeId);
+    void contextMenuEvent(QContextMenuEvent* event);
 };

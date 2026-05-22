@@ -10,15 +10,15 @@ class NodeGraphicsItem : public QGraphicsObject
     Q_OBJECT
 
 public:
+    // 构造函数
     NodeGraphicsItem(const std::string& nodeId, const std::string& title,
-        const QColor& color, QGraphicsItem* parent = nullptr)
-        : QGraphicsObject(parent), m_nodeId(nodeId), m_title(title), m_color(color)
+        const std::string& fullText, const QColor& color,
+        QGraphicsItem* parent = nullptr)
+        : QGraphicsObject(parent), m_nodeId(nodeId), m_title(title),
+        m_fullText(fullText), m_color(color)
     {
-        // 使此项可选中、可移动
         setFlags(ItemIsSelectable | ItemIsMovable | ItemSendsGeometryChanges);
         setAcceptHoverEvents(true);
-
-        // 设置固定大小
         m_width = 160;
         m_height = 60;
     }
@@ -38,23 +38,58 @@ public:
 
         painter->setRenderHint(QPainter::Antialiasing);
 
-        // 背景圆角矩形
         QRectF rect = boundingRect().adjusted(2, 2, -2, -2);
         painter->setBrush(m_color);
         painter->setPen(QPen(m_color.darker(150), 2));
         painter->drawRoundedRect(rect, 8, 8);
 
-        // 标题文字（白色，截断过长文本）
         painter->setPen(Qt::white);
         QFont font("Microsoft YaHei", 10, QFont::Bold);
         painter->setFont(font);
-        QString text = QString::fromStdString(m_title);
-        QRectF textRect = rect.adjusted(10, 5, -10, -5);
-        QString elided = painter->fontMetrics().elidedText(text, Qt::ElideRight,
-            static_cast<int>(textRect.width()));
-        painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
 
-        // 如果被选中，绘制高亮边框
+        // 获取实际文本：优先 full_text，否则用 title
+        std::string displayText;
+        if (!m_fullText.empty()) {
+            displayText = m_fullText;
+        }
+        else if (!m_title.empty()) {
+            displayText = m_title;
+        }
+        else {
+            displayText = "未命名";
+        }
+
+        QString text = QString::fromStdString(displayText);
+        QRectF textRect = rect.adjusted(10, 5, -10, -5);
+
+        // 自动换行 + 省略
+        QFontMetrics fm(font);
+        QString elided;
+        bool needWrap = false;
+        // 简单换行：按宽度折行
+        QStringList lines;
+        QString remaining = text;
+        while (!remaining.isEmpty()) {
+            QString line = fm.elidedText(remaining, Qt::ElideRight, static_cast<int>(textRect.width()));
+            if (line.isEmpty()) break;
+            lines.append(line);
+            remaining = remaining.mid(line.length());
+            if (lines.size() >= 3) { // 最多3行，超出省略
+                lines.last() = fm.elidedText(lines.last() + "…", Qt::ElideRight, static_cast<int>(textRect.width()));
+                break;
+            }
+        }
+
+        // 绘制多行文本
+        qreal yOffset = textRect.top();
+        QFontMetrics fmMulti(font);
+        for (int i = 0; i < lines.size(); ++i) {
+            painter->drawText(QRectF(textRect.left(), yOffset, textRect.width(), fmMulti.height()),
+                Qt::AlignLeft | Qt::AlignTop, lines[i]);
+            yOffset += fmMulti.height();
+        }
+
+        // 选中高亮
         if (isSelected()) {
             painter->setBrush(Qt::NoBrush);
             QPen highlightPen(QColor(100, 180, 255), 3);
@@ -62,7 +97,18 @@ public:
             painter->drawRoundedRect(rect, 8, 8);
         }
     }
+    // 在 NodeGraphicsItem 类的 public 部分添加：
 
+    void updateContent(const std::string& newTitle, const std::string& newFullText) {
+        m_title = newTitle;
+        m_fullText = newFullText;
+        update();  // 触发重绘
+    }
+
+    void updateColor(const QColor& newColor) {
+        m_color = newColor;
+        update();
+    }
     // 拖拽后更新模型坐标（后续接入模型时使用）
     const std::string& nodeId() const { return m_nodeId; }
 
@@ -103,6 +149,7 @@ private:
     float m_dragStartY = 0.0f;
     std::string m_nodeId;
     std::string m_title;
+    std::string m_fullText;
     QColor m_color;
     float m_width;
     float m_height;

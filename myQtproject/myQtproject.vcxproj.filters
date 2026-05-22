@@ -55,6 +55,15 @@
     <ClCompile Include="move_node_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="add_node_command.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="edit_node_command.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="delete_node_command.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="war_link.h">
@@ -82,6 +91,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="move_node_command.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="add_node_command.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="edit_node_command.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="delete_node_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -106,6 +106,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="add_node_command.cpp" />
+    <ClCompile Include="delete_node_command.cpp" />
+    <ClCompile Include="edit_node_command.cpp" />
     <ClCompile Include="LinkGraphicsItem.cpp" />
     <ClCompile Include="move_node_command.cpp" />
     <ClCompile Include="test_main.cpp" />
@@ -121,7 +124,10 @@
     <QtMoc Include="LinkGraphicsItem.h" />
     <QtMoc Include="warroomview.h" />
     <QtMoc Include="NodeGraphicsItem.h" />
+    <ClInclude Include="add_node_command.h" />
     <ClInclude Include="command.h" />
+    <ClInclude Include="delete_node_command.h" />
+    <ClInclude Include="edit_node_command.h" />
     <ClInclude Include="move_node_command.h" />
     <ClInclude Include="scout_action.h" />
     <ClInclude Include="undo_manager.h" />

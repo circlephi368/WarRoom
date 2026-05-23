@@ -64,6 +64,12 @@
     <ClCompile Include="delete_node_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="enum_serialization.h">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="war_room_model_serialization.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="war_link.h">
@@ -100,6 +106,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="delete_node_command.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="war_room_model_serialization.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

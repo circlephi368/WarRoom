@@ -1,10 +1,12 @@
 // war_room_model.h
 #pragma once
+#include <fstream>
 #include "warroom_types.h"
 #include "war_node.h"
 #include "war_link.h"
 #include "war_zone.h"
 #include "scout_action.h"
+#include "nlohmann/json.hpp"
 
 namespace warroom {
 
@@ -60,7 +62,23 @@ namespace warroom {
         // ---- 视图状态 ----
         Point2D camera_position;
         float zoom_level = 1.0f;
+        // ---- 序列化 ----
 
+        nlohmann::json toJson() const;
+        bool fromJson(const nlohmann::json& j);
+        bool saveToFile(const std::string& filepath) const;
+        bool loadFromFile(const std::string& filepath);
+
+        // 获取视图状态（用于保存/恢复）
+        void setCameraView(const Point2D& pos, float zoom) {
+            camera_position = pos;
+            zoom_level = zoom;
+        }
+
+        void getCameraView(Point2D& pos, float& zoom) const {
+            pos = camera_position;
+            zoom = zoom_level;
+        }
     private:
         Uuid document_root_id_;
         std::unordered_map<Uuid, WarNode> nodes_;

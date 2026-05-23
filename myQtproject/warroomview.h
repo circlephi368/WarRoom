@@ -3,6 +3,7 @@
 
 #include <QGraphicsView>
 #include <QWheelEvent>
+#include "war_room_model.h"
 
 class WarRoomView : public QGraphicsView
 {
@@ -20,7 +21,35 @@ public:
         setTransformationAnchor(QGraphicsView::NoAnchor);
         setResizeAnchor(QGraphicsView::NoAnchor);
     }
+    // 获取当前视图状态（用于保存）
+    warroom::Point2D getViewCenter() const {
+        QPointF center = mapToScene(viewport()->rect().center());
+        return { static_cast<float>(center.x()), static_cast<float>(center.y()) };
+    }
 
+    float getZoomLevel() const { return m_currentScale; }
+
+    // 恢复视图状态
+    void setViewCenter(const warroom::Point2D& center, float zoom) {
+        m_currentScale = zoom;
+        QPointF target(center.x, center.y);
+        QPointF viewCenter = mapToScene(viewport()->rect().center());
+        QPointF delta = target - viewCenter;
+
+        resetTransform();
+        scale(zoom, zoom);
+        translate(delta.x(), delta.y());
+    }
+
+    // 保存/恢复的便捷方法
+    void saveViewState(warroom::Point2D& pos, float& zoom) {
+        pos = getViewCenter();
+        zoom = getZoomLevel();
+    }
+
+    void restoreViewState(const warroom::Point2D& pos, float zoom) {
+        setViewCenter(pos, zoom);
+    }
 protected:
     void wheelEvent(QWheelEvent* event) override
     {

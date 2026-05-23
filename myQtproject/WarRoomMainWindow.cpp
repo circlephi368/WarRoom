@@ -9,12 +9,19 @@
 #include <QGraphicsScene>
 #include <qinputdialog.h>
 #include <functional>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QFile>
+#include <fstream>
+#include <iostream>
+#include <qtoolbar.h>
 
 
 WarRoomMainWindow::WarRoomMainWindow(QWidget* parent)
 	: QMainWindow(parent)
 {
 	ui.setupUi(this);
+	setupMenuBar();
 	setupScene();
 	populateFromModel();
 }
@@ -377,4 +384,365 @@ void WarRoomMainWindow::contextMenuEvent(QContextMenuEvent* event) {
 	}
 
 	menu.exec(event->globalPos());
+}
+void WarRoomMainWindow::onSaveAction() {
+	QString path = m_currentFilePath;
+	if (path.isEmpty()) {
+		path = QFileDialog::getSaveFileName(this, "保存作战图", "", "WarRoom文件 (*.warroom)");
+	}
+	if (path.isEmpty()) return;
+
+	// 先同步视图状态到模型
+	if (m_view) {
+		warroom::Point2D viewCenter = m_view->getViewCenter();
+		m_model.setCameraView(viewCenter, m_view->getZoomLevel());
+	}
+
+	std::string fullPath = path.toStdString();
+	if (fullPath.find(".warroom") == std::string::npos) {
+		fullPath += ".warroom";
+	}
+
+	if (m_model.saveToFile(fullPath)) {
+		m_currentFilePath = QString::fromStdString(fullPath);
+		QMessageBox::information(this, "保存成功", "文件已保存");
+	}
+	else {
+		QMessageBox::warning(this, "保存失败", "无法保存文件");
+	}
+}
+
+void WarRoomMainWindow::onLoadAction() {
+	QString path = QFileDialog::getOpenFileName(this, "加载作战图", "", "WarRoom文件 (*.warroom)");
+	if (path.isEmpty()) return;
+
+	warroom::WarRoomModel newModel;
+	if (newModel.loadFromFile(path.toStdString())) {
+		// 替换当前模型
+		m_model = std::move(newModel);
+		m_currentFilePath = path;
+
+		// 清空场景并重建
+		m_scene->clear();
+		rebuildFromModel();  // 需要实现这个方法
+
+		// 恢复视图
+		if (m_view) {
+			warroom::Point2D viewPos;
+			float zoom;
+			m_model.getCameraView(viewPos, zoom);
+			m_view->restoreViewState(viewPos, zoom);
+		}
+
+		QMessageBox::information(this, "加载成功", "文件已加载");
+	}
+	else {
+		QMessageBox::warning(this, "加载失败", "无法加载文件");
+	}
+}
+
+void WarRoomMainWindow::onExportJson() {
+	QString path = QFileDialog::getSaveFileName(this, "导出JSON", "", "JSON文件 (*.json)");
+	if (path.isEmpty()) return;
+
+	std::ofstream file(path.toStdString());
+	if (file.is_open()) {
+		file << m_model.toJson().dump(2);
+		file.close();
+		QMessageBox::information(this, "导出成功", "JSON已导出");
+	}
+	else {
+		QMessageBox::warning(this, "导出失败", "无法创建文件");
+	}
+}
+
+void WarRoomMainWindow::onImportJson() {
+	QString path = QFileDialog::getOpenFileName(this, "导入JSON", "", "JSON文件 (*.json)");
+	if (path.isEmpty()) return;
+
+	std::ifstream file(path.toStdString());
+	if (file.is_open()) {
+		nlohmann::json j;
+		file >> j;
+		if (m_model.fromJson(j)) {
+			m_scene->clear();
+			rebuildFromModel();
+			QMessageBox::information(this, "导入成功", "JSON已导入");
+		}
+		else {
+			QMessageBox::warning(this, "导入失败", "JSON格式错误");
+		}
+		file.close();
+	}
+	else {
+		QMessageBox::warning(this, "导入失败", "无法打开文件");
+	}
+}
+
+// 辅助方法：从模型重建场景
+void WarRoomMainWindow::rebuildFromModel() {
+	// 收集所有节点 ID
+	std::function<void(warroom::Uuid)> addNodeRecursive;
+	addNodeRecursive = [&](warroom::Uuid parentId) {
+		auto children = m_model.getChildren(parentId);
+		for (const warroom::Uuid& childId : children) {
+			const warroom::WarNode* node = m_model.getNode(childId);
+			if (!node) continue;
+
+			QColor color(QString::fromStdString(m_model.getEffectiveColor(childId)));
+
+			auto* item = new NodeGraphicsItem(
+				childId,
+				node->title.empty() ? "未命名" : node->title,
+				node->full_text,
+				color
+			);
+
+			item->setPos(node->pos_x, node->pos_y);
+
+			if (node->kind == warroom::NodeKind::Group) {
+				item->setScale(1.15);
+			}
+
+			QObject::connect(item, &NodeGraphicsItem::positionChanged,
+				this, &WarRoomMainWindow::onNodeMoved);
+			QObject::connect(item, &NodeGraphicsItem::moveFinished,
+				this, &WarRoomMainWindow::onNodeMoveFinished);
+
+			m_scene->addItem(item);
+			addNodeRecursive(childId);
+		}
+		};
+
+	addNodeRecursive(m_model.getDocumentRootId());
+
+	// 添加连线
+	for (const auto& [linkId, link] : m_model.getAllLinks()) {
+		auto* linkItem = new LinkGraphicsItem(linkId, m_model);
+		m_scene->addItem(linkItem);
+	}
+}
+void WarRoomMainWindow::setupToolBar()
+{
+	QToolBar* toolBar = addToolBar("文件");
+
+	// 新建按钮
+	QAction* newAction = new QAction(QIcon(), "新建", this);
+	connect(newAction, &QAction::triggered, this, &WarRoomMainWindow::onNewAction);
+	toolBar->addAction(newAction);
+
+	// 打开按钮
+	QAction* openAction = new QAction(QIcon(), "打开", this);
+	connect(openAction, &QAction::triggered, this, &WarRoomMainWindow::onLoadAction);
+	toolBar->addAction(openAction);
+
+	// 保存按钮
+	QAction* saveAction = new QAction(QIcon(), "保存", this);
+	connect(saveAction, &QAction::triggered, this, &WarRoomMainWindow::onSaveAction);
+	toolBar->addAction(saveAction);
+
+	toolBar->addSeparator();
+
+	// 撤销按钮
+	QAction* undoAction = new QAction(QIcon(), "撤销", this);
+	connect(undoAction, &QAction::triggered, this, &WarRoomMainWindow::onUndo);
+	toolBar->addAction(undoAction);
+
+	// 重做按钮
+	QAction* redoAction = new QAction(QIcon(), "重做", this);
+	connect(redoAction, &QAction::triggered, this, &WarRoomMainWindow::onRedo);
+	toolBar->addAction(redoAction);
+}
+// 检查是否需要保存当前修改（简单实现）
+bool WarRoomMainWindow::maybeSave()
+{
+	// 如果没有修改过，直接返回 true
+	// 这里可以添加 dirty flag 来追踪是否有未保存的修改
+
+	QMessageBox::StandardButton reply;
+	reply = QMessageBox::question(this, "未保存的更改",
+		"当前图表有未保存的更改，是否保存？",
+		QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+
+	if (reply == QMessageBox::Save) {
+		onSaveAction();
+		return true;  // 假设保存成功
+	}
+	else if (reply == QMessageBox::Discard) {
+		return true;
+	}
+	else {
+		return false;  // 取消操作
+	}
+}
+
+void WarRoomMainWindow::onNewAction()
+{
+	if (!maybeSave()) return;
+
+	// 创建新模型
+	warroom::WarRoomModel newModel;
+	m_model = std::move(newModel);
+	m_currentFilePath.clear();
+
+	// 清空场景并重建
+	clearScene();
+	rebuildFromModel();
+
+	// 重置视图
+	onResetView();
+}
+
+void WarRoomMainWindow::onSaveAsAction()
+{
+	QString path = QFileDialog::getSaveFileName(this, "保存作战图", "", "WarRoom文件 (*.warroom)");
+	if (path.isEmpty()) return;
+
+	// 同步视图状态到模型
+	if (m_view) {
+		warroom::Point2D viewCenter = m_view->getViewCenter();
+		m_model.setCameraView(viewCenter, m_view->getZoomLevel());
+	}
+
+	std::string fullPath = path.toStdString();
+	if (fullPath.find(".warroom") == std::string::npos) {
+		fullPath += ".warroom";
+	}
+
+	if (m_model.saveToFile(fullPath)) {
+		m_currentFilePath = QString::fromStdString(fullPath);
+		QMessageBox::information(this, "保存成功", "文件已保存");
+	}
+	else {
+		QMessageBox::warning(this, "保存失败", "无法保存文件");
+	}
+}
+
+void WarRoomMainWindow::onUndo()
+{
+	if (m_undoManager.canUndo()) {
+		m_undoManager.undo(m_model);
+		syncAllItemsFromModel();
+		refreshLinks();
+	}
+}
+
+void WarRoomMainWindow::onRedo()
+{
+	if (m_undoManager.canRedo()) {
+		m_undoManager.redo(m_model);
+		syncAllItemsFromModel();
+		refreshLinks();
+	}
+}
+
+void WarRoomMainWindow::onResetView()
+{
+	if (m_view) {
+		m_view->resetTransform();
+		m_view->centerOn(0, 0);
+	}
+}
+
+void WarRoomMainWindow::onAbout()
+{
+	QMessageBox::about(this, "关于作战图",
+		"作战图工具\n版本 1.0\n\n"
+		"功能：\n"
+		"• 节点管理（添加、删除、编辑）\n"
+		"• 连线管理\n"
+		"• 撤销/重做\n"
+		"• 保存/加载文件\n"
+		"• 导入/导出 JSON");
+}
+
+void WarRoomMainWindow::clearScene()
+{
+	// 清空场景中的所有项
+	m_scene->clear();
+}
+void WarRoomMainWindow::setupMenuBar()
+{
+	// 获取窗口的菜单栏，如果不存在则创建
+	QMenuBar* menuBar = this->menuBar();
+	if (!menuBar) {
+		menuBar = new QMenuBar(this);
+		this->setMenuBar(menuBar);
+	}
+
+	// 创建文件菜单
+	QMenu* fileMenu = menuBar->addMenu("文件(&F)");  // &F 表示 Alt+F 快捷键
+
+	QAction* newAction = new QAction("新建(&N)", this);
+	newAction->setShortcut(QKeySequence::New);
+	connect(newAction, &QAction::triggered, this, &WarRoomMainWindow::onNewAction);
+	fileMenu->addAction(newAction);
+
+	fileMenu->addSeparator();
+
+	QAction* openAction = new QAction("打开(&O)...", this);
+	openAction->setShortcut(QKeySequence::Open);
+	connect(openAction, &QAction::triggered, this, &WarRoomMainWindow::onLoadAction);
+	fileMenu->addAction(openAction);
+
+	QAction* saveAction = new QAction("保存(&S)", this);
+	saveAction->setShortcut(QKeySequence::Save);
+	connect(saveAction, &QAction::triggered, this, &WarRoomMainWindow::onSaveAction);
+	fileMenu->addAction(saveAction);
+
+	QAction* saveAsAction = new QAction("另存为(&A)...", this);
+	saveAsAction->setShortcut(QKeySequence::SaveAs);
+	connect(saveAsAction, &QAction::triggered, this, &WarRoomMainWindow::onSaveAsAction);
+	fileMenu->addAction(saveAsAction);
+
+	fileMenu->addSeparator();
+
+	QAction* importAction = new QAction("导入 JSON(&I)...", this);
+	connect(importAction, &QAction::triggered, this, &WarRoomMainWindow::onImportJson);
+	fileMenu->addAction(importAction);
+
+	QAction* exportAction = new QAction("导出 JSON(&E)...", this);
+	connect(exportAction, &QAction::triggered, this, &WarRoomMainWindow::onExportJson);
+	fileMenu->addAction(exportAction);
+
+	fileMenu->addSeparator();
+
+	QAction* exitAction = new QAction("退出(&X)", this);
+	exitAction->setShortcut(QKeySequence::Quit);
+	connect(exitAction, &QAction::triggered, this, &QWidget::close);
+	fileMenu->addAction(exitAction);
+
+	// 编辑菜单
+	QMenu* editMenu = menuBar->addMenu("编辑(&E)");
+
+	QAction* undoAction = new QAction("撤销(&U)", this);
+	undoAction->setShortcut(QKeySequence::Undo);
+	connect(undoAction, &QAction::triggered, this, &WarRoomMainWindow::onUndo);
+	editMenu->addAction(undoAction);
+
+	QAction* redoAction = new QAction("重做(&R)", this);
+	redoAction->setShortcut(QKeySequence::Redo);
+	connect(redoAction, &QAction::triggered, this, &WarRoomMainWindow::onRedo);
+	editMenu->addAction(redoAction);
+
+	editMenu->addSeparator();
+
+	QAction* deleteAction = new QAction("删除(&D)", this);
+	deleteAction->setShortcut(QKeySequence::Delete);
+	connect(deleteAction, &QAction::triggered, this, &WarRoomMainWindow::deleteSelectedNode);
+	editMenu->addAction(deleteAction);
+
+	// 视图菜单
+	QMenu* viewMenu = menuBar->addMenu("视图(&V)");
+
+	QAction* resetViewAction = new QAction("重置视图(&R)", this);
+	connect(resetViewAction, &QAction::triggered, this, &WarRoomMainWindow::onResetView);
+	viewMenu->addAction(resetViewAction);
+
+	// 帮助菜单
+	QMenu* helpMenu = menuBar->addMenu("帮助(&H)");
+
+	QAction* aboutAction = new QAction("关于(&A)", this);
+	connect(aboutAction, &QAction::triggered, this, &WarRoomMainWindow::onAbout);
+	helpMenu->addAction(aboutAction);
 }

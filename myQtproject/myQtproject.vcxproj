@@ -109,11 +109,13 @@
     <ClCompile Include="add_node_command.cpp" />
     <ClCompile Include="delete_node_command.cpp" />
     <ClCompile Include="edit_node_command.cpp" />
+    <ClCompile Include="enum_serialization.h" />
     <ClCompile Include="LinkGraphicsItem.cpp" />
     <ClCompile Include="move_node_command.cpp" />
     <ClCompile Include="test_main.cpp" />
     <ClCompile Include="undo_manager.cpp" />
     <ClCompile Include="war_room_model.cpp" />
+    <ClCompile Include="war_room_model_serialization.cpp" />
     <QtRcc Include="myQtproject.qrc" />
     <QtUic Include="myQtproject.ui" />
     <QtMoc Include="WarRoomMainWindow.h" />
@@ -135,6 +137,7 @@
     <ClInclude Include="war_link.h" />
     <ClInclude Include="war_node.h" />
     <ClInclude Include="war_room_model.h" />
+    <ClInclude Include="war_room_model_serialization.h" />
     <ClInclude Include="war_zone.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

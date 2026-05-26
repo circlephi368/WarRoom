@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QGraphicsSceneMouseEvent>
 #include <string>
+#include "war_room_model.h"
 
 class NodeGraphicsItem : public QGraphicsObject
 {
@@ -13,9 +14,12 @@ public:
     // 构造函数
     NodeGraphicsItem(const std::string& nodeId, const std::string& title,
         const std::string& fullText, const QColor& color,
+        warroom::NodeKind kind = warroom::NodeKind::Leaf,     // 新增
+        bool isCollapsed = false,                              // 新增
         QGraphicsItem* parent = nullptr)
         : QGraphicsObject(parent), m_nodeId(nodeId), m_title(title),
-        m_fullText(fullText), m_color(color)
+        m_fullText(fullText), m_color(color),
+        m_nodeKind(kind), m_isCollapsed(isCollapsed)         // 新增初始化
     {
         setFlags(ItemIsSelectable | ItemIsMovable | ItemSendsGeometryChanges);
         setAcceptHoverEvents(true);
@@ -47,15 +51,21 @@ public:
         QFont font("Microsoft YaHei", 10, QFont::Bold);
         painter->setFont(font);
 
-        // 获取实际文本：优先 full_text，否则用 title
+        // 获取实际文本：
         std::string displayText;
-        if (!m_fullText.empty()) {
-            displayText = m_fullText;
+        if (m_nodeKind == warroom::NodeKind::Group) {
+            // 分组节点：始终显示标题
+            displayText = m_title;
         }
-        else if (!m_title.empty()) {
+        else if (m_isCollapsed) {
+            // 叶节点缩略模式：显示标题
             displayText = m_title;
         }
         else {
+            // 叶节点展开模式：显示长文本
+            displayText = m_fullText.empty() ? m_title : m_fullText;
+        }
+        if (displayText.empty()) {
             displayText = "未命名";
         }
 
@@ -99,10 +109,13 @@ public:
     }
     // 在 NodeGraphicsItem 类的 public 部分添加：
 
-    void updateContent(const std::string& newTitle, const std::string& newFullText) {
+    void updateContent(const std::string& newTitle,
+        const std::string& newFullText,
+        bool isCollapsed) {
         m_title = newTitle;
         m_fullText = newFullText;
-        update();  // 触发重绘
+        m_isCollapsed = isCollapsed;
+        update();//重绘
     }
 
     void updateColor(const QColor& newColor) {
@@ -153,4 +166,6 @@ private:
     QColor m_color;
     float m_width;
     float m_height;
+    warroom::NodeKind m_nodeKind = warroom::NodeKind::Leaf;
+    bool m_isCollapsed = false;
 };

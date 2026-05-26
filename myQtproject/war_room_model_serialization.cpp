@@ -94,9 +94,10 @@ namespace warroom {
                 for (const auto& linkJson : j["links"]) {
                     WarLink link = fromJsonWarLink(linkJson);
                     if (!link.id.empty()) {
-                        links_[link.id] = std::move(link);
+                        std::string linkId = link.id;
+                        links_[linkId] = std::move(link);
                         // 重建索引
-                        const auto& linkRef = links_[link.id];
+                        const auto& linkRef = links_[linkId];
                         if (auto* na = dynamic_cast<const NodeAnchor*>(linkRef.start_anchor.get())) {
                             links_by_node_.emplace(na->node_id, link.id);
                         }

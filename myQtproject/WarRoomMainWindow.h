@@ -41,6 +41,7 @@ private slots:
 	void onResetView();      // 重置视图
 	void onAbout();          // 关于
 private:
+
 	void setupScene();
 	void populateFromModel();
 	void setupMenuBar();     // 设置菜单栏
@@ -56,10 +57,16 @@ private:
 
 	void refreshLinks();
 
-	warroom::UndoManager m_undoManager;  // 新增
+	// 统一的命令执行包装，自动触发视图同步
+	void executeCommand(std::unique_ptr<warroom::Command> cmd);
+
+	warroom::UndoManager m_undoManager;
 	Ui::myQtprojectClass ui;
 	QGraphicsScene* m_scene = nullptr;
 	WarRoomView* m_view = nullptr;
+
+	// 节点图形项映射表：Uuid -> NodeGraphicsItem*
+	QHash<QString, NodeGraphicsItem*> m_nodeItems;
 
 	warroom::WarRoomModel m_model;   // 提升为成员
 

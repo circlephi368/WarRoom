@@ -17,6 +17,7 @@ namespace warroom {
 
     private:
         WarNode node_;
+        Uuid nodeId_;
         Uuid parentId_;
         int index_;
         bool executed_ = false;  // 防止重复执行

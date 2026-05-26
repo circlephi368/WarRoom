@@ -1,41 +1,22 @@
 {
   "camera_position": {
-    "x": 298.5613708496094,
-    "y": 98.66899108886719
+    "x": 217.9800567626953,
+    "y": 299.3409729003906
   },
-  "document_root_id": "ee0a625e-9a9a-4024-a954-a2b6622deb8a",
+  "document_root_id": "93cf0d87-7241-4b3a-a0c0-eb838247da89",
   "links": [
-    {
-      "color": "#3498db",
-      "end_anchor": {
-        "node_id": "f7855299-6014-4aa0-95fc-4446bea1c1a0",
-        "offset_x": 0.0,
-        "offset_y": 0.0,
-        "type": "node"
-      },
-      "id": "51923905-fcd5-416d-b287-72e58f6eefc4",
-      "label": "转化为",
-      "start_anchor": {
-        "node_id": "0e41055b-ecf6-4eb0-872a-93e44471c2fd",
-        "offset_x": 0.0,
-        "offset_y": 0.0,
-        "type": "node"
-      },
-      "type": "transformation",
-      "waypoints": []
-    },
     {
       "color": "#f39c12",
       "end_anchor": {
-        "node_id": "15a7e331-3ec0-4374-80a5-bdf52dc4a975",
+        "node_id": "7216f19f-657f-45e3-b191-541b71330236",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
       },
-      "id": "94f9aca1-226b-4b3b-91fb-586b0cfddc40",
+      "id": "871e067d-52a5-41c0-964f-88945f7327ca",
       "label": "依赖",
       "start_anchor": {
-        "node_id": "0e41055b-ecf6-4eb0-872a-93e44471c2fd",
+        "node_id": "ce77de9d-e67b-4d66-b790-57caed07c4a0",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
@@ -44,17 +25,36 @@
       "waypoints": []
     },
     {
-      "color": "#9b59b6",
+      "color": "#3498db",
       "end_anchor": {
-        "node_id": "8fea112b-ed0a-4209-9915-102b28619a03",
+        "node_id": "b3dd4b6e-b763-4ec0-9d6f-3abcc637fc83",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
       },
-      "id": "ad994eec-e8d9-43c1-a2f3-67e55e6dd017",
+      "id": "9654b223-3541-4284-9ffa-9cacecfac941",
+      "label": "转化为",
+      "start_anchor": {
+        "node_id": "ce77de9d-e67b-4d66-b790-57caed07c4a0",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "transformation",
+      "waypoints": []
+    },
+    {
+      "color": "#9b59b6",
+      "end_anchor": {
+        "node_id": "0166c21c-20f5-4fad-8e7e-6cb8a07547e8",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "05c909f3-d188-421f-8531-5663326cbedf",
       "label": "启发",
       "start_anchor": {
-        "node_id": "0e41055b-ecf6-4eb0-872a-93e44471c2fd",
+        "node_id": "ce77de9d-e67b-4d66-b790-57caed07c4a0",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
@@ -65,32 +65,13 @@
   ],
   "nodes": [
     {
-      "children_ids": [],
-      "collapsed_display": "count_badge",
-      "explicit_color": "#95a5a6",
-      "full_text": "",
-      "id": "f7855299-6014-4aa0-95fc-4446bea1c1a0",
-      "is_collapsed": false,
-      "kind": "leaf",
-      "parent_id": "20c3b030-b110-4708-9ed1-4af89999c099",
-      "pos_x": 262.99102783203125,
-      "pos_y": 346.07177734375,
-      "priority": 0,
-      "tags": [
-        "失败"
-      ],
-      "title": "索引重建方案",
-      "tool_category": "",
-      "tool_summary": ""
-    },
-    {
       "children_ids": [
-        "20c3b030-b110-4708-9ed1-4af89999c099",
-        "8fea112b-ed0a-4209-9915-102b28619a03"
+        "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
+        "0166c21c-20f5-4fad-8e7e-6cb8a07547e8"
       ],
       "collapsed_display": "count_badge",
       "full_text": "",
-      "id": "ee0a625e-9a9a-4024-a954-a2b6622deb8a",
+      "id": "93cf0d87-7241-4b3a-a0c0-eb838247da89",
       "is_collapsed": false,
       "kind": "group",
       "parent_id": "",
@@ -103,37 +84,18 @@
       "tool_summary": ""
     },
     {
-      "children_ids": [],
-      "collapsed_display": "count_badge",
-      "explicit_color": "#3498db",
-      "full_text": "test full_text",
-      "id": "0e41055b-ecf6-4eb0-872a-93e44471c2fd",
-      "is_collapsed": false,
-      "kind": "leaf",
-      "parent_id": "20c3b030-b110-4708-9ed1-4af89999c099",
-      "pos_x": 40.558319091796875,
-      "pos_y": 61.565303802490234,
-      "priority": 0,
-      "tags": [
-        "进行中"
-      ],
-      "title": "数据库查询优化",
-      "tool_category": "",
-      "tool_summary": ""
-    },
-    {
       "children_ids": [
-        "0e41055b-ecf6-4eb0-872a-93e44471c2fd",
-        "15a7e331-3ec0-4374-80a5-bdf52dc4a975",
-        "f7855299-6014-4aa0-95fc-4446bea1c1a0"
+        "ce77de9d-e67b-4d66-b790-57caed07c4a0",
+        "7216f19f-657f-45e3-b191-541b71330236",
+        "b3dd4b6e-b763-4ec0-9d6f-3abcc637fc83"
       ],
       "collapsed_display": "count_badge",
       "explicit_color": "#e74c3c",
       "full_text": "",
-      "id": "20c3b030-b110-4708-9ed1-4af89999c099",
+      "id": "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
       "is_collapsed": false,
       "kind": "group",
-      "parent_id": "ee0a625e-9a9a-4024-a954-a2b6622deb8a",
+      "parent_id": "93cf0d87-7241-4b3a-a0c0-eb838247da89",
       "pos_x": 0.0,
       "pos_y": -100.0,
       "priority": 0,
@@ -145,13 +107,32 @@
     {
       "children_ids": [],
       "collapsed_display": "count_badge",
-      "full_text": "",
-      "id": "15a7e331-3ec0-4374-80a5-bdf52dc4a975",
+      "explicit_color": "#3498db",
+      "full_text": "test full_text",
+      "id": "ce77de9d-e67b-4d66-b790-57caed07c4a0",
       "is_collapsed": false,
       "kind": "leaf",
-      "parent_id": "20c3b030-b110-4708-9ed1-4af89999c099",
-      "pos_x": 292.8713684082031,
-      "pos_y": 63.87836456298828,
+      "parent_id": "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
+      "pos_x": -200.0,
+      "pos_y": 50.0,
+      "priority": 0,
+      "tags": [
+        "进行中"
+      ],
+      "title": "数据库查询优化",
+      "tool_category": "",
+      "tool_summary": ""
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "full_text": "",
+      "id": "7216f19f-657f-45e3-b191-541b71330236",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
+      "pos_x": -141.5214385986328,
+      "pos_y": 470.28314208984375,
       "priority": 0,
       "tags": [
         "未探索"
@@ -163,12 +144,31 @@
     {
       "children_ids": [],
       "collapsed_display": "count_badge",
-      "explicit_color": "#2ecc71",
+      "explicit_color": "#95a5a6",
       "full_text": "",
-      "id": "8fea112b-ed0a-4209-9915-102b28619a03",
+      "id": "b3dd4b6e-b763-4ec0-9d6f-3abcc637fc83",
       "is_collapsed": false,
       "kind": "leaf",
-      "parent_id": "ee0a625e-9a9a-4024-a954-a2b6622deb8a",
+      "parent_id": "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
+      "pos_x": 300.0,
+      "pos_y": 50.0,
+      "priority": 0,
+      "tags": [
+        "失败"
+      ],
+      "title": "索引重建方案",
+      "tool_category": "",
+      "tool_summary": ""
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "explicit_color": "#2ecc71",
+      "full_text": "",
+      "id": "0166c21c-20f5-4fad-8e7e-6cb8a07547e8",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "93cf0d87-7241-4b3a-a0c0-eb838247da89",
       "pos_x": 500.0,
       "pos_y": -100.0,
       "priority": 0,
@@ -181,5 +181,5 @@
   "scout_log": [],
   "timeline": [],
   "zones": [],
-  "zoom_level": 0.43232759833335876
+  "zoom_level": 0.3759370446205139
 }

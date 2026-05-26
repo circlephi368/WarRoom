@@ -5,6 +5,7 @@ namespace warroom {
 
     AddNodeCommand::AddNodeCommand(WarNode node, Uuid parentId, int index)
         : node_(std::move(node))
+        , nodeId_(node_.id)
         , parentId_(std::move(parentId))
         , index_(index)
     {}
@@ -16,7 +17,7 @@ namespace warroom {
     }
 
     void AddNodeCommand::undo(WarRoomModel& model) {
-        model.removeNode(node_.id);
+        model.removeNode(nodeId_);
     }
 
     std::string AddNodeCommand::description() const {

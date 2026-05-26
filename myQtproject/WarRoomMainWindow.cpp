@@ -145,6 +145,7 @@ void WarRoomMainWindow::populateFromModel()
 				this, &WarRoomMainWindow::onNodeMoveFinished);
 
 			m_scene->addItem(item);
+			m_nodeItems.insert(QString::fromStdString(childId), item);
 			createItems(childId);
 		}
 		};
@@ -167,10 +168,9 @@ void WarRoomMainWindow::onNodeMoveFinished(const std::string& nodeId,
 {
 	using warroom::MoveNodeCommand;
 	auto cmd = std::make_unique<MoveNodeCommand>(nodeId, oldX, oldY, newX, newY);
-	m_undoManager.executeCommand(std::move(cmd), m_model);
+	executeCommand(std::move(cmd));
 
-	// 刷新连线
-	refreshLinks();
+	
 }
 void WarRoomMainWindow::keyPressEvent(QKeyEvent* event)
 {
@@ -194,21 +194,38 @@ void WarRoomMainWindow::keyPressEvent(QKeyEvent* event)
 }
 void WarRoomMainWindow::syncAllItemsFromModel()
 {
-	// 收集场景中已有的节点ID
-	std::unordered_set<std::string> existingItemIds;
-	for (QGraphicsItem* item : m_scene->items()) {
-		auto* nodeItem = dynamic_cast<NodeGraphicsItem*>(item);
-		if (nodeItem) {
-			existingItemIds.insert(nodeItem->nodeId());
+	// 收集模型中所有节点ID
+	std::unordered_set<std::string> modelNodeIds;
+	std::function<void(warroom::Uuid)> collectIds;
+	collectIds = [&](warroom::Uuid parentId) {
+		auto children = m_model.getChildren(parentId);
+		for (const auto& childId : children) {
+			modelNodeIds.insert(childId);
+			collectIds(childId);
+		}
+		};
+	collectIds(m_model.getDocumentRootId());
+
+	// 删除映射表中模型里已不存在的节点
+	QList<QString> idsToRemove;
+	for (auto it = m_nodeItems.begin(); it != m_nodeItems.end(); ++it) {
+		if (modelNodeIds.find(it.key().toStdString()) == modelNodeIds.end()) {
+			idsToRemove.append(it.key());
 		}
 	}
+	for (const auto& id : idsToRemove) {
+		auto* item = m_nodeItems.take(id);
+		m_scene->removeItem(item);
+		delete item;
+	}
 
-	// 递归遍历模型，为缺失的节点创建图形项
+	// 为模型中有但映射表中没有的节点创建图形项
 	std::function<void(warroom::Uuid)> createMissingItems;
 	createMissingItems = [&](warroom::Uuid parentId) {
 		auto children = m_model.getChildren(parentId);
-		for (const warroom::Uuid& childId : children) {
-			if (existingItemIds.find(childId) == existingItemIds.end()) {
+		for (const auto& childId : children) {
+			QString key = QString::fromStdString(childId);
+			if (!m_nodeItems.contains(key)) {
 				const warroom::WarNode* node = m_model.getNode(childId);
 				if (node) {
 					QColor color(QString::fromStdString(m_model.getEffectiveColor(childId)));
@@ -216,7 +233,9 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 						childId,
 						node->title.empty() ? "未命名" : node->title,
 						node->full_text,
-						color
+						color,
+						node->kind,
+						node->is_collapsed
 					);
 					item->setPos(node->pos_x, node->pos_y);
 					if (node->kind == warroom::NodeKind::Group) {
@@ -227,37 +246,28 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 					QObject::connect(item, &NodeGraphicsItem::moveFinished,
 						this, &WarRoomMainWindow::onNodeMoveFinished);
 					m_scene->addItem(item);
-					existingItemIds.insert(childId);
+					m_nodeItems.insert(key, item);
 				}
 			}
 			createMissingItems(childId);
 		}
 		};
-
 	createMissingItems(m_model.getDocumentRootId());
 
 	// 同步已有节点的位置和内容
-	for (QGraphicsItem* item : m_scene->items()) {
-		auto* nodeItem = dynamic_cast<NodeGraphicsItem*>(item);
-		if (!nodeItem) continue;
-
-		const warroom::WarNode* node = m_model.getNode(nodeItem->nodeId());
+	for (auto it = m_nodeItems.begin(); it != m_nodeItems.end(); ++it) {
+		NodeGraphicsItem* nodeItem = it.value();
+		const warroom::WarNode* node = m_model.getNode(it.key().toStdString());
 		if (node) {
 			nodeItem->blockSignals(true);
-
-			// 同步位置
 			nodeItem->setPos(node->pos_x, node->pos_y);
-
-			// 同步标题和文本内容（需要给 NodeGraphicsItem 添加更新方法）
 			nodeItem->updateContent(
 				node->title.empty() ? "未命名" : node->title,
-				node->full_text
+				node->full_text,
+				node->is_collapsed
 			);
-
-			// 同步颜色
-			QColor color(QString::fromStdString(m_model.getEffectiveColor(nodeItem->nodeId())));
+			QColor color(QString::fromStdString(m_model.getEffectiveColor(it.key().toStdString())));
 			nodeItem->updateColor(color);
-
 			nodeItem->blockSignals(false);
 		}
 	}
@@ -265,10 +275,25 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 
 void WarRoomMainWindow::refreshLinks()
 {
+	// 收集待删除的无效连线项（不能在遍历时直接删除）
+	QList<QGraphicsItem*> itemsToRemove;
+
 	for (QGraphicsItem* item : m_scene->items()) {
 		if (auto* linkItem = dynamic_cast<LinkGraphicsItem*>(item)) {
-			linkItem->updatePositions();
+			// 检查模型中的连线是否还存在
+			if (!m_model.getLink(linkItem->linkId())) {
+				itemsToRemove.append(item);
+			}
+			else {
+				linkItem->updatePositions();
+			}
 		}
+	}
+
+	// 清理无效连线图形项
+	for (QGraphicsItem* item : itemsToRemove) {
+		m_scene->removeItem(item);
+		delete item;
 	}
 }
 
@@ -312,14 +337,15 @@ void WarRoomMainWindow::deleteSelectedNode() {
 		auto cmd = std::make_unique<warroom::DeleteNodeCommand>(
 			ctx.nodeId, ctx.savedNode, ctx.parentId, ctx.index
 		);
-		m_undoManager.executeCommand(std::move(cmd), m_model);
+		executeCommand(std::move(cmd));
 
-		// 删除图形项
-		delete nodeItem;
+		//// 删除图形项
+		//m_nodeItems.remove(QString::fromStdString(nodeId));
+		//delete nodeItem;
 		break;  // 一次只删一个
 	}
 
-	refreshLinks();  // 刷新连线
+	
 }
 //添加节点
 void WarRoomMainWindow::addNodeAtPosition(QPointF scenePos) {
@@ -331,10 +357,9 @@ void WarRoomMainWindow::addNodeAtPosition(QPointF scenePos) {
 		m_model.getDocumentRootId(),
 		-1
 	);
-	m_undoManager.executeCommand(std::move(cmd), m_model);
+	executeCommand(std::move(cmd));
 
-	syncAllItemsFromModel();  // 现在会创建新节点的图形项
-	refreshLinks();
+	
 }
 
 // 编辑节点（双击时调用）
@@ -354,10 +379,9 @@ void WarRoomMainWindow::editNode(const std::string& nodeId) {
 			node->title, newTitle.toStdString(),
 			node->full_text, newFullText.toStdString()
 		);
-		m_undoManager.executeCommand(std::move(cmd), m_model);
+		executeCommand(std::move(cmd));
 
-		// 更新图形项的显示
-		syncAllItemsFromModel();
+		
 	}
 }
 void WarRoomMainWindow::contextMenuEvent(QContextMenuEvent* event) {
@@ -481,6 +505,9 @@ void WarRoomMainWindow::onImportJson() {
 
 // 辅助方法：从模型重建场景
 void WarRoomMainWindow::rebuildFromModel() {
+	// 清空映射表
+	//qDeleteAll(m_nodeItems);
+	m_nodeItems.clear();
 	// 收集所有节点 ID
 	std::function<void(warroom::Uuid)> addNodeRecursive;
 	addNodeRecursive = [&](warroom::Uuid parentId) {
@@ -510,6 +537,7 @@ void WarRoomMainWindow::rebuildFromModel() {
 				this, &WarRoomMainWindow::onNodeMoveFinished);
 
 			m_scene->addItem(item);
+			m_nodeItems.insert(QString::fromStdString(childId), item);
 			addNodeRecursive(childId);
 		}
 		};
@@ -658,8 +686,16 @@ void WarRoomMainWindow::onAbout()
 
 void WarRoomMainWindow::clearScene()
 {
+	// 清空映射表（场景清空会自动删除图形项）
+	m_nodeItems.clear();
 	// 清空场景中的所有项
 	m_scene->clear();
+}
+void WarRoomMainWindow::executeCommand(std::unique_ptr<warroom::Command> cmd)
+{
+	m_undoManager.executeCommand(std::move(cmd), m_model);
+	syncAllItemsFromModel();
+	refreshLinks();
 }
 void WarRoomMainWindow::setupMenuBar()
 {

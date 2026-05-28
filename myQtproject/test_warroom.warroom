@@ -1,22 +1,41 @@
 {
   "camera_position": {
-    "x": 217.9800567626953,
-    "y": 299.3409729003906
+    "x": -1.0,
+    "y": -1.0
   },
-  "document_root_id": "93cf0d87-7241-4b3a-a0c0-eb838247da89",
+  "document_root_id": "2ff8be50-8e82-43e9-a415-c2c1a9c0e54d",
   "links": [
     {
-      "color": "#f39c12",
+      "color": "#9b59b6",
       "end_anchor": {
-        "node_id": "7216f19f-657f-45e3-b191-541b71330236",
+        "node_id": "87f8aa03-3e7e-403f-9edd-94fc73a316dc",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
       },
-      "id": "871e067d-52a5-41c0-964f-88945f7327ca",
+      "id": "3aff16f4-acb8-4c34-936b-255b1a66eed9",
+      "label": "启发",
+      "start_anchor": {
+        "node_id": "bee59d28-5b39-4a1e-915a-691370af84cc",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "inspiration",
+      "waypoints": []
+    },
+    {
+      "color": "#f39c12",
+      "end_anchor": {
+        "node_id": "09b08766-9a69-40ce-92ae-b29a8f98e500",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "35660d01-12a7-4f8c-83e6-c92e9985c9bc",
       "label": "依赖",
       "start_anchor": {
-        "node_id": "ce77de9d-e67b-4d66-b790-57caed07c4a0",
+        "node_id": "bee59d28-5b39-4a1e-915a-691370af84cc",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
@@ -27,15 +46,15 @@
     {
       "color": "#3498db",
       "end_anchor": {
-        "node_id": "b3dd4b6e-b763-4ec0-9d6f-3abcc637fc83",
+        "node_id": "3b97f65d-df17-42da-9456-9fe60159d66f",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
       },
-      "id": "9654b223-3541-4284-9ffa-9cacecfac941",
+      "id": "ce67d634-79c1-4f86-bead-a79b7eb110f2",
       "label": "转化为",
       "start_anchor": {
-        "node_id": "ce77de9d-e67b-4d66-b790-57caed07c4a0",
+        "node_id": "bee59d28-5b39-4a1e-915a-691370af84cc",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
@@ -44,34 +63,51 @@
       "waypoints": []
     },
     {
-      "color": "#9b59b6",
+      "color": "#3498db",
       "end_anchor": {
-        "node_id": "0166c21c-20f5-4fad-8e7e-6cb8a07547e8",
+        "node_id": "bee59d28-5b39-4a1e-915a-691370af84cc",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
       },
-      "id": "05c909f3-d188-421f-8531-5663326cbedf",
-      "label": "启发",
+      "id": "b768e30f-adf1-4ec9-8fa3-6375f49abd71",
+      "label": "",
       "start_anchor": {
-        "node_id": "ce77de9d-e67b-4d66-b790-57caed07c4a0",
+        "node_id": "d935d04c-5602-419c-b596-f65251e2f3ea",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
       },
-      "type": "inspiration",
+      "type": "dependency",
       "waypoints": []
     }
   ],
   "nodes": [
     {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "explicit_color": "#2ecc71",
+      "full_text": "",
+      "id": "87f8aa03-3e7e-403f-9edd-94fc73a316dc",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "2ff8be50-8e82-43e9-a415-c2c1a9c0e54d",
+      "pos_x": 500.0,
+      "pos_y": -100.0,
+      "priority": 0,
+      "tags": [],
+      "title": "网络延迟排查",
+      "tool_category": "",
+      "tool_summary": ""
+    },
+    {
       "children_ids": [
-        "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
-        "0166c21c-20f5-4fad-8e7e-6cb8a07547e8"
+        "d935d04c-5602-419c-b596-f65251e2f3ea",
+        "87f8aa03-3e7e-403f-9edd-94fc73a316dc"
       ],
       "collapsed_display": "count_badge",
       "full_text": "",
-      "id": "93cf0d87-7241-4b3a-a0c0-eb838247da89",
+      "id": "2ff8be50-8e82-43e9-a415-c2c1a9c0e54d",
       "is_collapsed": false,
       "kind": "group",
       "parent_id": "",
@@ -85,19 +121,19 @@
     },
     {
       "children_ids": [
-        "ce77de9d-e67b-4d66-b790-57caed07c4a0",
-        "7216f19f-657f-45e3-b191-541b71330236",
-        "b3dd4b6e-b763-4ec0-9d6f-3abcc637fc83"
+        "bee59d28-5b39-4a1e-915a-691370af84cc",
+        "09b08766-9a69-40ce-92ae-b29a8f98e500",
+        "3b97f65d-df17-42da-9456-9fe60159d66f"
       ],
       "collapsed_display": "count_badge",
       "explicit_color": "#e74c3c",
       "full_text": "",
-      "id": "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
+      "id": "d935d04c-5602-419c-b596-f65251e2f3ea",
       "is_collapsed": false,
       "kind": "group",
-      "parent_id": "93cf0d87-7241-4b3a-a0c0-eb838247da89",
-      "pos_x": 0.0,
-      "pos_y": -100.0,
+      "parent_id": "2ff8be50-8e82-43e9-a415-c2c1a9c0e54d",
+      "pos_x": -94.0,
+      "pos_y": -80.0,
       "priority": 0,
       "tags": [],
       "title": "主攻方向",
@@ -109,10 +145,10 @@
       "collapsed_display": "count_badge",
       "explicit_color": "#3498db",
       "full_text": "test full_text",
-      "id": "ce77de9d-e67b-4d66-b790-57caed07c4a0",
+      "id": "bee59d28-5b39-4a1e-915a-691370af84cc",
       "is_collapsed": false,
       "kind": "leaf",
-      "parent_id": "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
+      "parent_id": "d935d04c-5602-419c-b596-f65251e2f3ea",
       "pos_x": -200.0,
       "pos_y": 50.0,
       "priority": 0,
@@ -127,12 +163,12 @@
       "children_ids": [],
       "collapsed_display": "count_badge",
       "full_text": "",
-      "id": "7216f19f-657f-45e3-b191-541b71330236",
+      "id": "09b08766-9a69-40ce-92ae-b29a8f98e500",
       "is_collapsed": false,
       "kind": "leaf",
-      "parent_id": "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
-      "pos_x": -141.5214385986328,
-      "pos_y": 470.28314208984375,
+      "parent_id": "d935d04c-5602-419c-b596-f65251e2f3ea",
+      "pos_x": 50.0,
+      "pos_y": 50.0,
       "priority": 0,
       "tags": [
         "未探索"
@@ -146,10 +182,10 @@
       "collapsed_display": "count_badge",
       "explicit_color": "#95a5a6",
       "full_text": "",
-      "id": "b3dd4b6e-b763-4ec0-9d6f-3abcc637fc83",
+      "id": "3b97f65d-df17-42da-9456-9fe60159d66f",
       "is_collapsed": false,
       "kind": "leaf",
-      "parent_id": "8bdd1cdc-950a-4a82-a49f-1440ea65cec6",
+      "parent_id": "d935d04c-5602-419c-b596-f65251e2f3ea",
       "pos_x": 300.0,
       "pos_y": 50.0,
       "priority": 0,
@@ -159,27 +195,10 @@
       "title": "索引重建方案",
       "tool_category": "",
       "tool_summary": ""
-    },
-    {
-      "children_ids": [],
-      "collapsed_display": "count_badge",
-      "explicit_color": "#2ecc71",
-      "full_text": "",
-      "id": "0166c21c-20f5-4fad-8e7e-6cb8a07547e8",
-      "is_collapsed": false,
-      "kind": "leaf",
-      "parent_id": "93cf0d87-7241-4b3a-a0c0-eb838247da89",
-      "pos_x": 500.0,
-      "pos_y": -100.0,
-      "priority": 0,
-      "tags": [],
-      "title": "网络延迟排查",
-      "tool_category": "",
-      "tool_summary": ""
     }
   ],
   "scout_log": [],
   "timeline": [],
   "zones": [],
-  "zoom_level": 0.3759370446205139
+  "zoom_level": 1.0
 }

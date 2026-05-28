@@ -1,6 +1,10 @@
 #include "LinkGraphicsItem.h"
 #include "war_room_model.h"
-
+#include "WarRoomMainWindow.h"
+#include <QGraphicsSceneContextMenuEvent>
+#include <QMenu>
+#include <QGraphicsScene>
+#include <qgraphicsview.h>
 #include <cmath>
 
 // ---------------------------------------------------------------------------
@@ -204,4 +208,33 @@ void LinkGraphicsItem::arrowHeadPoints(const QPointF& tip,
         tip.y() - len * std::sin(angle - spread));
     p2 = QPointF(tip.x() - len * std::cos(angle + spread),
         tip.y() - len * std::sin(angle + spread));
+}
+void LinkGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton) {
+        // 清除其他选中，选中当前连线
+        if (scene()) {
+            for (auto* item : scene()->selectedItems()) {
+                item->setSelected(false);
+            }
+        }
+        setSelected(true);
+        event->accept();
+    }
+    QGraphicsObject::mousePressEvent(event);
+}
+
+void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
+{
+    QMenu menu;
+    QAction* deleteAction = menu.addAction("删除连线");
+
+    QAction* selectedAction = menu.exec(event->screenPos());
+
+    if (selectedAction == deleteAction) {
+        // 通知 MainWindow 删除连线
+        if (auto* mainWindow = qobject_cast<WarRoomMainWindow*>(scene()->views().first()->parent())) {
+            mainWindow->deleteLink(m_linkId);
+        }
+    }
 }

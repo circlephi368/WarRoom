@@ -106,12 +106,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="add_link_command.cpp" />
     <ClCompile Include="add_node_command.cpp" />
+    <ClCompile Include="ConnectionAnchor.cpp" />
+    <ClCompile Include="delete_link_command.cpp" />
     <ClCompile Include="delete_node_command.cpp" />
     <ClCompile Include="edit_node_command.cpp" />
     <ClCompile Include="enum_serialization.h" />
+    <ClCompile Include="LinkCreationManager.cpp" />
     <ClCompile Include="LinkGraphicsItem.cpp" />
     <ClCompile Include="move_node_command.cpp" />
+    <ClCompile Include="NodeGraphicsItem.cpp" />
+    <ClCompile Include="TempConnectionItem.cpp" />
     <ClCompile Include="test_main.cpp" />
     <ClCompile Include="undo_manager.cpp" />
     <ClCompile Include="war_room_model.cpp" />
@@ -126,12 +132,17 @@
     <QtMoc Include="LinkGraphicsItem.h" />
     <QtMoc Include="warroomview.h" />
     <QtMoc Include="NodeGraphicsItem.h" />
+    <ClInclude Include="add_link_command.h" />
     <ClInclude Include="add_node_command.h" />
     <ClInclude Include="command.h" />
+    <ClInclude Include="ConnectionAnchor.h" />
+    <ClInclude Include="delete_link_command.h" />
     <ClInclude Include="delete_node_command.h" />
     <ClInclude Include="edit_node_command.h" />
+    <QtMoc Include="LinkCreationManager.h" />
     <ClInclude Include="move_node_command.h" />
     <ClInclude Include="scout_action.h" />
+    <QtMoc Include="TempConnectionItem.h" />
     <ClInclude Include="undo_manager.h" />
     <ClInclude Include="warroom_types.h" />
     <ClInclude Include="war_link.h" />

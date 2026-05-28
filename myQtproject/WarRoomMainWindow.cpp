@@ -5,7 +5,10 @@
 #include "move_node_command.h"
 #include "edit_node_command.h"
 #include "add_node_command.h"
+#include "add_link_command.h"
 #include "delete_node_command.h"
+#include "LinkCreationManager.h"
+#include "delete_link_command.h"
 #include <QGraphicsScene>
 #include <qinputdialog.h>
 #include <functional>
@@ -34,6 +37,10 @@ void WarRoomMainWindow::setupScene()
 	m_scene->setSceneRect(-5000, -5000, 10000, 10000);
 	m_view = new WarRoomView(m_scene, this);
 	setCentralWidget(m_view);
+
+	// 初始化连接管理器
+	LinkCreationManager::instance().setMainWindow(this);
+	LinkCreationManager::instance().setScene(m_scene);
 }
 
 void WarRoomMainWindow::populateFromModel()
@@ -781,4 +788,60 @@ void WarRoomMainWindow::setupMenuBar()
 	QAction* aboutAction = new QAction("关于(&A)", this);
 	connect(aboutAction, &QAction::triggered, this, &WarRoomMainWindow::onAbout);
 	helpMenu->addAction(aboutAction);
+}
+void WarRoomMainWindow::createLinkBetweenNodes(const std::string& fromId, const std::string& toId)
+{
+	using warroom::WarLink;
+	using warroom::LinkType;
+
+	WarLink link = WarLink::makeNodeToNode(fromId, toId, LinkType::Dependency);
+	link.label = "";
+	link.color = "#3498db";
+
+	auto cmd = std::make_unique<warroom::AddLinkCommand>(std::move(link));
+
+	// 保存 linkId 以便创建图形项
+	warroom::Uuid newLinkId = cmd->getLinkId();
+
+	// 执行命令
+	m_undoManager.executeCommand(std::move(cmd), m_model);
+
+	// 为新增连线创建图形项
+	const warroom::WarLink* createdLink = m_model.getLink(newLinkId);
+	if (createdLink) {
+		auto* linkItem = new LinkGraphicsItem(newLinkId, m_model);
+		m_scene->addItem(linkItem);
+	}
+}
+void WarRoomMainWindow::deleteLink(const warroom::Uuid& linkId)
+{
+	const warroom::WarLink* link = m_model.getLink(linkId);
+	if (!link) return;
+
+	// 提取锚点中的节点ID
+	warroom::Uuid startNodeId;
+	warroom::Uuid endNodeId;
+
+	if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(link->start_anchor.get())) {
+		startNodeId = na->node_id;
+	}
+	if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(link->end_anchor.get())) {
+		endNodeId = na->node_id;
+	}
+
+	auto cmd = std::make_unique<warroom::DeleteLinkCommand>(
+		linkId, startNodeId, endNodeId, link->type, link->label, link->color
+	);
+	executeCommand(std::move(cmd));
+
+	// 删除场景中的图形项
+	for (QGraphicsItem* item : m_scene->items()) {
+		if (auto* linkItem = dynamic_cast<LinkGraphicsItem*>(item)) {
+			if (linkItem->linkId() == linkId) {
+				m_scene->removeItem(linkItem);
+				delete linkItem;
+				break;
+			}
+		}
+	}
 }

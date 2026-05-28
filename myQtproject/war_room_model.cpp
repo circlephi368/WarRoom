@@ -170,16 +170,24 @@ namespace warroom {
 
         // 清理索引
         const WarLink& link = it->second;
-        if (auto* na = dynamic_cast<NodeAnchor*>(link.start_anchor.get())) {
-            auto range = links_by_node_.equal_range(na->node_id);
-            for (auto lit = range.first; lit != range.second; ++lit) {
-                if (lit->second == id) {
-                    links_by_node_.erase(lit);
-                    break;
+
+        auto removeFromIndex = [&](const std::unique_ptr<Anchor>& anchor) {
+            if (auto* na = dynamic_cast<NodeAnchor*>(anchor.get())) {
+                auto range = links_by_node_.equal_range(na->node_id);
+                for (auto lit = range.first; lit != range.second; ++lit) {
+                    if (lit->second == id) {
+                        links_by_node_.erase(lit);
+                        return;
+                    }
                 }
             }
+            };
+
+        removeFromIndex(link.start_anchor);
+        removeFromIndex(link.end_anchor);
+        for (const auto& wp : link.waypoints) {
+            removeFromIndex(wp);
         }
-        // ... end_anchor 和 waypoints 同理
 
         links_.erase(it);
         return true;

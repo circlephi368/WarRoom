@@ -70,6 +70,24 @@
     <ClCompile Include="war_room_model_serialization.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ConnectionAnchor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TempConnectionItem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="LinkCreationManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="NodeGraphicsItem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="add_link_command.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="delete_link_command.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="war_link.h">
@@ -111,6 +129,15 @@
     <ClInclude Include="war_room_model_serialization.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ConnectionAnchor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="add_link_command.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="delete_link_command.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="NodeGraphicsItem.h">
@@ -120,6 +147,12 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="LinkGraphicsItem.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="LinkCreationManager.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="TempConnectionItem.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

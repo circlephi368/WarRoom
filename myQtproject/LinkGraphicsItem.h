@@ -1,6 +1,7 @@
 #pragma once
-
+#include <QMenu>
 #include <QGraphicsObject>
+#include <QGraphicsSceneContextMenuEvent>
 #include <QPainter>
 #include <QPen>
 
@@ -11,7 +12,7 @@
 namespace warroom {
     class WarRoomModel;
 }
-
+class WarRoomMainWindow;
 /**
  * @brief 连线图形项，负责将 WarLink 数据渲染为贝塞尔曲线。
  *
@@ -23,6 +24,8 @@ class LinkGraphicsItem : public QGraphicsObject
     Q_OBJECT
 
 public:
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;
     /**
      * @param linkId 对应 WarLink::id
      * @param model  只读模型引用，用于解析锚点坐标

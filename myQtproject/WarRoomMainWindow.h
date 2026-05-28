@@ -29,6 +29,10 @@ class WarRoomMainWindow : public QMainWindow
 public:
 	WarRoomMainWindow(QWidget* parent = nullptr);
 	~WarRoomMainWindow();
+
+	void deleteLink(const warroom::Uuid& linkId);
+	void createLinkBetweenNodes(const std::string& fromId, const std::string& toId);
+
 private slots:
 	void onExportJson();
 	void onImportJson();

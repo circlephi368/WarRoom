@@ -1,5 +1,5 @@
 #include "delete_link_command.h"
-#include "war_room_model.h"
+#include "core/warroom/war_room_model.h"
 
 namespace warroom {
 
@@ -21,7 +21,7 @@ namespace warroom {
     }
 
     void DeleteLinkCommand::undo(WarRoomModel& model) {
-        WarLink link = WarLink::makeNodeToNode(startNodeId_, endNodeId_, type_);
+        WarLink link = WarLink::makeNodeToNode(startNodeId_, -1, endNodeId_, -1, type_);
         link.id = linkId_;
         link.label = label_;
         link.color = color_;

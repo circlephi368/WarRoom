@@ -31,11 +31,17 @@ namespace warroom {
         bool removeNode(Uuid id);  // 级联删除子树和关联连线
         void setNodeParent(Uuid node_id, Uuid new_parent_id, int index = -1);
         const std::unordered_map<Uuid, WarNode>& getAllNodes() const { return nodes_; }
+        void setNodeColor(Uuid node_id, Color color);
+        void setNodesize(Uuid node_id, float width, float height);
+
 
         // ---- 查询 ----
         std::vector<Uuid> getChildren(Uuid parent_id) const;
         std::vector<Uuid> getTopLevelNodes() const;  // 文档根的直接子节点
         Color getEffectiveColor(Uuid node_id) const;
+        float getNodewidth(Uuid id) const;
+        float getNodeheight(Uuid id) const;
+        Color getNodeColor(Uuid id)const;
 
         // ---- 连线操作 ----
         const WarLink* getLink(Uuid id) const;
@@ -63,7 +69,7 @@ namespace warroom {
         Point2D camera_position;
         float zoom_level = 1.0f;
         // ---- 序列化 ----
-
+        
         nlohmann::json toJson() const;
         bool fromJson(const nlohmann::json& j);
         bool saveToFile(const std::string& filepath) const;

@@ -1,6 +1,6 @@
 #pragma once
-#include "war_node.h"
-#include "warroom_types.h"
+#include "core/warroom/war_node.h"
+#include "core/warroom/warroom_types.h"
 #include <qevent.h>
 #include <qmainwindow.h>
 #include <qpoint.h>
@@ -10,9 +10,9 @@
 #include <string>
 
 #include "ui_myQtproject.h"
-#include "undo_manager.h"
-#include "war_room_model.h"
-#include"warroomview.h"
+#include "core/command/undo_manager.h"
+#include "core/warroom/war_room_model.h"
+#include "warroomview.h"
 class QGraphicsScene;
 class QGraphicsView;
 class NodeGraphicsItem;
@@ -31,7 +31,7 @@ public:
 	~WarRoomMainWindow();
 
 	void deleteLink(const warroom::Uuid& linkId);
-	void createLinkBetweenNodes(const std::string& fromId, const std::string& toId);
+	void createLinkBetweenNodes(const std::string& fromId, int fromEdge, const std::string& toId, int toEdge);
 
 private slots:
 	void onExportJson();

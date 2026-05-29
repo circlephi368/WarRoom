@@ -1,5 +1,5 @@
-#include "add_node_command.h"
-#include "war_room_model.h"
+#include "core/command/add_node_command.h"
+#include "core/warroom/war_room_model.h"
 
 namespace warroom {
 

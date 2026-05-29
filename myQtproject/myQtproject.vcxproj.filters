@@ -29,130 +29,133 @@
     <QtUic Include="myQtproject.ui">
       <Filter>Form Files</Filter>
     </QtUic>
-    <QtMoc Include="WarRoomMainWindow.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
-    <ClCompile Include="WarRoomMainWindow.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="war_room_model.cpp">
+    <ClCompile Include="core\command\add_link_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="test_main.cpp">
+    <ClCompile Include="core\command\add_node_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LinkGraphicsItem.cpp">
+    <ClCompile Include="core\command\delete_link_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="undo_manager.cpp">
+    <ClCompile Include="core\command\delete_node_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="move_node_command.cpp">
+    <ClCompile Include="core\command\edit_node_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="add_node_command.cpp">
+    <ClCompile Include="core\command\move_node_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="edit_node_command.cpp">
+    <ClCompile Include="core\command\undo_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="delete_node_command.cpp">
+    <ClCompile Include="core\serialization\war_room_model_serialization.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="enum_serialization.h">
-      <Filter>Header Files</Filter>
-    </ClCompile>
-    <ClCompile Include="war_room_model_serialization.cpp">
+    <ClCompile Include="core\warroom\war_room_model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ConnectionAnchor.cpp">
+    <ClCompile Include="ui\ConnectionAnchor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TempConnectionItem.cpp">
+    <ClCompile Include="ui\LinkCreationManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LinkCreationManager.cpp">
+    <ClCompile Include="ui\LinkGraphicsItem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="NodeGraphicsItem.cpp">
+    <ClCompile Include="ui\NodeGraphicsItem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="add_link_command.cpp">
+    <ClCompile Include="ui\TempConnectionItem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="delete_link_command.cpp">
+    <ClCompile Include="ui\WarRoomMainWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="war_link.h">
+    <ClInclude Include="core\command\add_link_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="war_node.h">
+    <ClInclude Include="core\command\add_node_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="warroom_types.h">
+    <ClInclude Include="core\command\command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="war_zone.h">
+    <ClInclude Include="core\command\delete_link_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="war_room_model.h">
+    <ClInclude Include="core\command\delete_node_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="scout_action.h">
+    <ClInclude Include="core\command\edit_node_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="command.h">
+    <ClInclude Include="core\command\move_node_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="undo_manager.h">
+    <ClInclude Include="core\command\undo_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="move_node_command.h">
+    <ClInclude Include="core\serialization\enum_serialization.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="add_node_command.h">
+    <ClInclude Include="core\serialization\war_room_model_serialization.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="edit_node_command.h">
+    <ClInclude Include="core\warroom\scout_action.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="delete_node_command.h">
+    <ClInclude Include="core\warroom\war_link.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="war_room_model_serialization.h">
+    <ClInclude Include="core\warroom\war_node.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ConnectionAnchor.h">
+    <ClInclude Include="core\warroom\war_room_model.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="add_link_command.h">
+    <ClInclude Include="core\warroom\war_zone.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="delete_link_command.h">
+    <ClInclude Include="core\warroom\warroom_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="nlohmann\json.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="nlohmann\json_fwd.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <QtMoc Include="NodeGraphicsItem.h">
+    <QtMoc Include="ui\warroomview.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="warroomview.h">
+    <QtMoc Include="ui\WarRoomMainWindow.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="LinkGraphicsItem.h">
+    <QtMoc Include="ui\NodeGraphicsItem.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="LinkCreationManager.h">
+    <QtMoc Include="ui\LinkGraphicsItem.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="TempConnectionItem.h">
+    <QtMoc Include="ui\TempConnectionItem.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ui\LinkCreationManager.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ui\ConnectionAnchor.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

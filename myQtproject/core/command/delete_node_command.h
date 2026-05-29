@@ -1,7 +1,7 @@
 #pragma once
 #include "command.h"
-#include "war_node.h"
-#include "warroom_types.h"
+#include "core/warroom/war_node.h"
+#include "core/warroom/warroom_types.h"
 
 namespace warroom {
 

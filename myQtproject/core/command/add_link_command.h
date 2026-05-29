@@ -1,7 +1,7 @@
 // add_link_command.h
 #pragma once
 #include "command.h"
-#include "war_link.h"
+#include "core/warroom/war_link.h"
 
 namespace warroom {
 

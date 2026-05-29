@@ -1,5 +1,5 @@
 #include "LinkGraphicsItem.h"
-#include "war_room_model.h"
+#include "core/warroom/war_room_model.h"
 #include "WarRoomMainWindow.h"
 #include <QGraphicsSceneContextMenuEvent>
 #include <QMenu>
@@ -27,15 +27,7 @@ LinkGraphicsItem::LinkGraphicsItem(const warroom::Uuid& linkId,
 // ---------------------------------------------------------------------------
 QRectF LinkGraphicsItem::boundingRect() const
 {
-    QRectF rect(m_startPoint, m_endPoint);
-
-    // 把路径点也纳入包围盒
-    for (const auto& wp : m_wayPoints) {
-        rect = rect.united(QRectF(wp, QSizeF(1, 1)));
-    }
-
-    rect = rect.normalized();
-    return rect.adjusted(-60, -60, 60, 60);
+    return m_hitArea.boundingRect();
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +59,9 @@ void LinkGraphicsItem::updatePositions()
     // 解析终点
     warroom::Point2D e = link->end_anchor->resolvePosition(m_model);
     m_endPoint = QPointF(e.x, e.y);
+
+    // 更新命中区域
+    updateHitArea();
 }
 
 // ---------------------------------------------------------------------------
@@ -141,25 +136,63 @@ void LinkGraphicsItem::paint(QPainter* painter,
     }
 }
 
+// shape() 返回精确的命中路径
+QPainterPath LinkGraphicsItem::shape() const
+{
+    return m_hitArea;
+}
+
 // ---------------------------------------------------------------------------
 // 构建路径：有路径点时沿路径点走折线，无路径点时画贝塞尔
 // ---------------------------------------------------------------------------
 void LinkGraphicsItem::buildPath(QPainterPath& path) const
 {
     if (m_wayPoints.isEmpty()) {
-        // 无路径点 → 贝塞尔曲线
-        BezierControl ctrl = computeControlPoints(m_startPoint, m_endPoint);
+        // 查询出入 edge
+        const warroom::WarLink* link = m_model.getLink(m_linkId);
+        int fromEdge = -1;
+        int toEdge = -1;
+        if (link) {
+            if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(link->start_anchor.get()))
+                fromEdge = na->edge;
+            if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(link->end_anchor.get()))
+                toEdge = na->edge;
+        }
+
+        BezierControl ctrl = computeControlPoints(m_startPoint, fromEdge,
+            m_endPoint, toEdge);
         path.moveTo(m_startPoint);
         path.cubicTo(ctrl.ctrl1, ctrl.ctrl2, m_endPoint);
     }
     else {
-        // 有路径点 → 逐段直线（平滑升级可改此处）
+        // 有路径点，暂时保持原逻辑
         path.moveTo(m_startPoint);
         for (const auto& wp : m_wayPoints) {
             path.lineTo(wp);
         }
         path.lineTo(m_endPoint);
     }
+}
+
+QPointF LinkGraphicsItem::edgeDirection(int edge)
+{
+    switch (edge) {
+    case 0: return QPointF(1.0, 0.0);   // 右
+    case 1: return QPointF(0.0, 1.0);   // 下
+    case 2: return QPointF(-1.0, 0.0);  // 左
+    case 3: return QPointF(0.0, -1.0);  // 上
+    default: return QPointF(1.0, 0.0);  // 默认右
+    }
+}
+
+void LinkGraphicsItem::updateHitArea()
+{
+    QPainterPath path;
+    buildPath(path);
+
+    QPainterPathStroker stroker;
+    stroker.setWidth(10.0);   // 线宽 2 + 两侧各 4px 容差，总共约 10px 的命中宽度
+    m_hitArea = stroker.createStroke(path);
 }
 
 // ---------------------------------------------------------------------------
@@ -182,14 +215,27 @@ QColor LinkGraphicsItem::defaultColorForType(warroom::LinkType type)
 // 贝塞尔控制点
 // ---------------------------------------------------------------------------
 LinkGraphicsItem::BezierControl
-LinkGraphicsItem::computeControlPoints(QPointF from, QPointF to)
+LinkGraphicsItem::computeControlPoints(QPointF from, int fromEdge,
+    QPointF to, int toEdge)
 {
     QPointF delta = to - from;
     double dist = std::hypot(delta.x(), delta.y());
     double offset = std::min(dist * 0.4, 120.0);
 
-    return { QPointF(from.x() + offset, from.y()),
-             QPointF(to.x() - offset, to.y()) };
+    QPointF fromDir = edgeDirection(fromEdge);
+    QPointF toDir = edgeDirection(toEdge);
+
+    // 如果某端 edge 未指定，回退到连线方向的水平投影
+    if (fromDir.isNull()) {
+        fromDir = QPointF(delta.x() > 0 ? 1.0 : -1.0, 0.0);
+    }
+    if (toDir.isNull()) {
+        toDir = QPointF(delta.x() > 0 ? -1.0 : 1.0, 0.0);
+    }
+
+    QPointF ctrl1 = from + fromDir * offset;
+    QPointF ctrl2 = to + toDir * offset;   // 注意：toDir 指向从节点中心向外，所以这里是加，不是减
+    return { ctrl1, ctrl2 };
 }
 
 // ---------------------------------------------------------------------------

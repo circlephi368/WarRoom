@@ -1,6 +1,6 @@
 #pragma once
 #include "command.h"
-#include "warroom_types.h"
+#include "core/warroom/warroom_types.h"
 
 namespace warroom {
 

@@ -31,6 +31,13 @@ namespace warroom {
         std::vector<std::string> tags;  // 如 "未探索"、"进行中"、"已验证"、"失败"
         int priority = 0;               // 0-10
 
+        //长宽（包围盒属性）
+        float width=160;
+        float height=60;
+
+        //颜色
+        Color color;//十六进制颜色
+        
         // ---- 外观覆写（optional 表示未显式设定，走继承） ----
         std::optional<Color> explicit_color;
         std::optional<float> explicit_size;

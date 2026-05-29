@@ -1,6 +1,6 @@
 #include "undo_manager.h"
 #include "command.h"
-#include "war_room_model.h"
+#include "core/warroom/war_room_model.h"
 
 namespace warroom {
 

@@ -148,9 +148,7 @@ void LinkCreationManager::endConnection(const QPointF& scenePos)
             qDebug() << "  Creating link from" << fromNode->nodeId().c_str()
                 << "to" << toNode->nodeId().c_str();
             m_mainWindow->createLinkBetweenNodes(
-                fromNode->nodeId(),
-                toNode->nodeId()
-            );
+                fromNode->nodeId(), m_startAnchor->edge(), toNode->nodeId(), targetAnchor->edge());
         }
     }
 

@@ -1,14 +1,14 @@
-#include "LinkGraphicsItem.h"
-#include "warroomview.h"
+#include "ui/LinkGraphicsItem.h"
+#include "ui/warroomview.h"
 #include "WarRoomMainWindow.h"
-#include "NodeGraphicsItem.h"
-#include "move_node_command.h"
-#include "edit_node_command.h"
-#include "add_node_command.h"
-#include "add_link_command.h"
-#include "delete_node_command.h"
-#include "LinkCreationManager.h"
-#include "delete_link_command.h"
+#include "ui/NodeGraphicsItem.h"
+#include "core/command/move_node_command.h"
+#include "core/command/edit_node_command.h"
+#include "core/command/add_node_command.h"
+#include "core/command/add_link_command.h"
+#include "core/command/delete_node_command.h"
+#include "ui/LinkCreationManager.h"
+#include "core/command/delete_link_command.h"
 #include <QGraphicsScene>
 #include <qinputdialog.h>
 #include <functional>
@@ -53,11 +53,13 @@ void WarRoomMainWindow::populateFromModel()
 	using warroom::LinkType;
 
 	WarNode group = WarNode::makeGroup("主攻方向", 0, -100);
-	group.explicit_color = "#e74c3c";
+	group.color= "#e74c3c";
+	//group.explicit_color = "#e74c3c";
 	Uuid groupId = m_model.addNode(std::move(group), m_model.getDocumentRootId());
 
 	WarNode leaf1 = WarNode::makeLeaf("数据库查询优化", -200, 50);
 	leaf1.tags = { "进行中" };
+
 	leaf1.explicit_color = "#3498db";
 	leaf1.full_text = "test full_text";
 	m_model.addNode(std::move(leaf1), groupId);
@@ -69,6 +71,7 @@ void WarRoomMainWindow::populateFromModel()
 	WarNode leaf3 = WarNode::makeLeaf("索引重建方案", 300, 50);
 	leaf3.tags = { "失败" };
 	leaf3.explicit_color = "#95a5a6";
+	leaf3.width = 300;
 	m_model.addNode(std::move(leaf3), groupId);
 
 	WarNode standalone = WarNode::makeLeaf("网络延迟排查", 500, -100);
@@ -85,32 +88,28 @@ void WarRoomMainWindow::populateFromModel()
 	// ---- 创建连线（测试数据） ----
 	// 先查找已创建节点的 ID
 	Uuid dbNode, cacheNode, indexNode, netNode;
-	for (const auto& [id, node] : m_model.getAllNodes()) {  // 假设你也有 getAllNodes()，
+	for (const auto& [id, node] : m_model.getAllNodes()) {
 		// 否则遍历 topLevel + children
 		if (node.title == "数据库查询优化") dbNode = id;
 		else if (node.title == "缓存策略调整") cacheNode = id;
 		else if (node.title == "索引重建方案") indexNode = id;
 		else if (node.title == "网络延迟排查") netNode = id;
 	}
-
-	// 如果没有 getAllNodes()，用手动查找：
-	// （略，用前面已有的变量 groupId 和子节点遍历结果）
-
 	// 添加连线到模型
 	if (!dbNode.empty() && !cacheNode.empty()) {
-		auto link = warroom::WarLink::makeNodeToNode(dbNode, cacheNode, warroom::LinkType::Dependency);
+		auto link = warroom::WarLink::makeNodeToNode(dbNode, 0, cacheNode, 0, warroom::LinkType::Dependency);
 		link.label = "依赖";
 		link.color = "#f39c12";
 		m_model.addLink(std::move(link));
 	}
 	if (!dbNode.empty() && !indexNode.empty()) {
-		auto link = warroom::WarLink::makeNodeToNode(dbNode, indexNode, warroom::LinkType::Transformation);
+		auto link = warroom::WarLink::makeNodeToNode(dbNode, 1, indexNode, 2, warroom::LinkType::Transformation);
 		link.label = "转化为";
 		link.color = "#3498db";
 		m_model.addLink(std::move(link));
 	}
 	if (!dbNode.empty() && !netNode.empty()) {
-		auto link = warroom::WarLink::makeNodeToNode(dbNode, netNode, warroom::LinkType::Inspiration);
+		auto link = warroom::WarLink::makeNodeToNode(dbNode, 2, netNode, 3, warroom::LinkType::Inspiration);
 		link.label = "启发";
 		link.color = "#9b59b6";
 		m_model.addLink(std::move(link));
@@ -132,17 +131,13 @@ void WarRoomMainWindow::populateFromModel()
 			QColor color(QString::fromStdString(m_model.getEffectiveColor(childId)));
 
 			auto* item = new NodeGraphicsItem(
-				childId,
+				childId, *node,
 				node->title.empty() ? "未命名" : node->title,
 				node->full_text,   // 传入长文本
 				color
 			);
 
 			item->setPos(node->pos_x, node->pos_y);
-
-			if (node->kind == NodeKind::Group) {
-				item->setScale(1.15);
-			}
 
 			// ★ 连接信号：拖拽结束 → 更新模型
 			QObject::connect(item, &NodeGraphicsItem::positionChanged,
@@ -235,9 +230,9 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 			if (!m_nodeItems.contains(key)) {
 				const warroom::WarNode* node = m_model.getNode(childId);
 				if (node) {
-					QColor color(QString::fromStdString(m_model.getEffectiveColor(childId)));
+					QColor color(QString::fromStdString(node->color));
 					auto* item = new NodeGraphicsItem(
-						childId,
+						childId, *node,
 						node->title.empty() ? "未命名" : node->title,
 						node->full_text,
 						color,
@@ -245,9 +240,6 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 						node->is_collapsed
 					);
 					item->setPos(node->pos_x, node->pos_y);
-					if (node->kind == warroom::NodeKind::Group) {
-						item->setScale(1.15);
-					}
 					QObject::connect(item, &NodeGraphicsItem::positionChanged,
 						this, &WarRoomMainWindow::onNodeMoved);
 					QObject::connect(item, &NodeGraphicsItem::moveFinished,
@@ -273,9 +265,10 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 				node->full_text,
 				node->is_collapsed
 			);
-			QColor color(QString::fromStdString(m_model.getEffectiveColor(it.key().toStdString())));
+			QColor color(QString::fromStdString(node->color));
 			nodeItem->updateColor(color);
 			nodeItem->blockSignals(false);
+			
 		}
 	}
 }
@@ -526,17 +519,13 @@ void WarRoomMainWindow::rebuildFromModel() {
 			QColor color(QString::fromStdString(m_model.getEffectiveColor(childId)));
 
 			auto* item = new NodeGraphicsItem(
-				childId,
+				childId, *node,
 				node->title.empty() ? "未命名" : node->title,
 				node->full_text,
 				color
 			);
 
 			item->setPos(node->pos_x, node->pos_y);
-
-			if (node->kind == warroom::NodeKind::Group) {
-				item->setScale(1.15);
-			}
 
 			QObject::connect(item, &NodeGraphicsItem::positionChanged,
 				this, &WarRoomMainWindow::onNodeMoved);
@@ -789,12 +778,12 @@ void WarRoomMainWindow::setupMenuBar()
 	connect(aboutAction, &QAction::triggered, this, &WarRoomMainWindow::onAbout);
 	helpMenu->addAction(aboutAction);
 }
-void WarRoomMainWindow::createLinkBetweenNodes(const std::string& fromId, const std::string& toId)
+void WarRoomMainWindow::createLinkBetweenNodes(const std::string& fromId,int fromEdge, const std::string& toId, int toEdge)
 {
 	using warroom::WarLink;
 	using warroom::LinkType;
 
-	WarLink link = WarLink::makeNodeToNode(fromId, toId, LinkType::Dependency);
+	WarLink link = WarLink::makeNodeToNode(fromId, fromEdge, toId, toEdge, LinkType::Dependency);
 	link.label = "";
 	link.color = "#3498db";
 

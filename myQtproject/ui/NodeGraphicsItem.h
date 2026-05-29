@@ -4,7 +4,7 @@
 #include <QPainter>
 #include <QGraphicsSceneMouseEvent>
 #include <string>
-#include "war_room_model.h"
+#include "core/warroom/war_room_model.h"
 #include "ConnectionAnchor.h"
 
 class NodeGraphicsItem : public QGraphicsObject
@@ -13,7 +13,7 @@ class NodeGraphicsItem : public QGraphicsObject
 
 public:
     // 构造函数声明
-    NodeGraphicsItem(const std::string& nodeId, const std::string& title,
+    NodeGraphicsItem(const std::string& nodeId, const warroom::WarNode& node, const std::string& title,
         const std::string& fullText, const QColor& color,
         warroom::NodeKind kind = warroom::NodeKind::Leaf,
         bool isCollapsed = false,
@@ -21,6 +21,9 @@ public:
 
     // 包围盒
     QRectF boundingRect() const override;
+
+    float getNodewidth() const { return m_node.width; };
+    float getNodeheight() const { return m_node.height; };
 
     // 绘制
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
@@ -42,7 +45,6 @@ public:
 
     // 更新颜色
     void updateColor(const QColor& newColor);
-
     // 获取节点ID
     const std::string& nodeId() const { return m_nodeId; }
 
@@ -60,12 +62,11 @@ protected:
 private:
     float m_dragStartX = 0.0f;
     float m_dragStartY = 0.0f;
+    warroom::WarNode m_node;
     std::string m_nodeId;
     std::string m_title;
     std::string m_fullText;
     QColor m_color;
-    float m_width;
-    float m_height;
     warroom::NodeKind m_nodeKind = warroom::NodeKind::Leaf;
     bool m_isCollapsed = false;
     QList<ConnectionAnchor*> m_anchors;

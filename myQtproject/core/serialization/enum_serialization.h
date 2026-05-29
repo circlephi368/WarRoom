@@ -2,9 +2,9 @@
 #pragma once
 #include <string>
 #include <unordered_map>
-#include "war_link.h"
-#include "war_node.h"
-#include "scout_action.h"
+#include "core/warroom/war_link.h"
+#include "core/warroom/war_node.h"
+#include "core/warroom/scout_action.h"
 
 namespace warroom {
 

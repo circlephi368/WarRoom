@@ -25,10 +25,11 @@ namespace warroom {
         Uuid node_id;
         float offset_x = 0.0f;
         float offset_y = 0.0f;
+        int edge = -1;  // -1 表示未指定（兼容旧数据），0=右, 1=下, 2=左, 3=上
 
         NodeAnchor() { anchor_type = AnchorType::Node; }
-        NodeAnchor(Uuid id, float ox = 0, float oy = 0)
-            : node_id(std::move(id)), offset_x(ox), offset_y(oy) {
+        NodeAnchor(Uuid id, float ox = 0, float oy = 0, int edge = -1)
+            : node_id(std::move(id)), offset_x(ox), offset_y(oy), edge(edge){
             anchor_type = AnchorType::Node;
         }
 
@@ -70,11 +71,11 @@ namespace warroom {
         std::string label;
         Color color = kDefaultLinkColor;
 
-        static WarLink makeNodeToNode(Uuid src, Uuid dst, LinkType type = LinkType::Dependency) {
+        static WarLink makeNodeToNode(Uuid src, int srcEdge, Uuid dst, int dstEdge, LinkType type = LinkType::Dependency) {
             WarLink link;
             link.id = generateUuid();
-            link.start_anchor = std::make_unique<NodeAnchor>(std::move(src));
-            link.end_anchor = std::make_unique<NodeAnchor>(std::move(dst));
+            link.start_anchor = std::make_unique<NodeAnchor>(std::move(src), 0, 0, srcEdge);
+            link.end_anchor = std::make_unique<NodeAnchor>(std::move(dst), 0, 0, dstEdge);
             link.type = type;
             return link;
         }

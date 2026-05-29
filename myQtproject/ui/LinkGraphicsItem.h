@@ -5,8 +5,8 @@
 #include <QPainter>
 #include <QPen>
 
-#include "warroom_types.h"
-#include "war_link.h"
+#include "core/warroom/warroom_types.h"
+#include "core/warroom/war_link.h"
 
 // 前置声明
 namespace warroom {
@@ -40,6 +40,7 @@ public:
     void paint(QPainter* painter,
         const QStyleOptionGraphicsItem* option,
         QWidget* widget) override;
+    QPainterPath shape() const override;
 
     // ---- 自有接口 ----
     const warroom::Uuid& linkId() const { return m_linkId; }
@@ -55,13 +56,22 @@ private:
     // ---- 路径构建 ----
     QVector<QPointF> m_wayPoints;
     void buildPath(QPainterPath& path) const;
+
+    // 计算出入连接线方向
+    // 根据 edge 返回单位方向向量（从节点中心指向边缘外）
+    // edge: 0=右(+x), 1=下(+y), 2=左(-x), 3=上(-y), 其他返回0右
+    static QPointF edgeDirection(int edge);
     
+    QPainterPath m_hitArea;  // 用于命中检测的路径轮廓
+    void updateHitArea();
     // ---- 贝塞尔控制点计算（便于独立替换） ----
     struct BezierControl {
         QPointF ctrl1;
         QPointF ctrl2;
     };
-    static BezierControl computeControlPoints(QPointF from, QPointF to);
+    static BezierControl computeControlPoints(
+        QPointF from, int fromEdge,
+        QPointF to, int toEdge);
 
     // ---- 箭头 ----
     static void arrowHeadPoints(const QPointF& tip,

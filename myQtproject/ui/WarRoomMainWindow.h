@@ -44,6 +44,8 @@ private slots:
 	void onRedo();           // 重做
 	void onResetView();      // 重置视图
 	void onAbout();          // 关于
+
+	void onNodeSelectedForZBoost(const std::string& nodeId);  // 新增
 private:
 
 	void setupScene();
@@ -55,6 +57,8 @@ private:
 	// 拖拽回写
 	void onNodeMoved(const std::string& nodeId, float newX, float newY);
 	void onNodeMoveFinished(const std::string& nodeId, float oldX, float oldY, float newX, float newY);  // 新增
+	void onNodeSizeChanged(const std::string& nodeId, float newWidth, float newHeight);
+	void onNodeResizeFinished(const std::string& nodeId, float oldWidth, float oldHeight, float newWidth, float newHeight);
 	void keyPressEvent(QKeyEvent* event) override;  // 新增，用于 Ctrl+Z / Ctrl+Y
 
 	void syncAllItemsFromModel();
@@ -72,12 +76,17 @@ private:
 	// 节点图形项映射表：Uuid -> NodeGraphicsItem*
 	QHash<QString, NodeGraphicsItem*> m_nodeItems;
 
-	warroom::WarRoomModel m_model;   // 提升为成员
+	// 提升为成员
+	warroom::WarRoomModel m_model;   
+
+	// 递归更新节点及其所有子孙的 Z 值
+	void updateSubtreeZValues(const std::string& nodeId);
 
 	//辅助函数，获取删除节点所需的信息
 	NodeContext captureNodeContext(const warroom::Uuid& nodeId);
 	void deleteSelectedNode();
 	void addNodeAtPosition(QPointF scenePos);
+	void addNodeAtPosition(QPointF scenePos, const warroom::Uuid& parentId);
 	void editNode(const std::string& nodeId);
 	void contextMenuEvent(QContextMenuEvent* event);
 	QString m_currentFilePath;

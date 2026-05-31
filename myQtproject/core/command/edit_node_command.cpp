@@ -14,11 +14,13 @@ namespace warroom {
     {}
 
     void EditNodeCommand::execute(WarRoomModel& model) {
+        if (executed_) return;
         WarNode* node = model.getNodeMutable(nodeId_);
         if (node) {
             node->title = newTitle_;
             node->full_text = newFullText_;
         }
+        executed_ = true;
     }
 
     void EditNodeCommand::undo(WarRoomModel& model) {

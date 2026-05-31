@@ -1,19 +1,23 @@
 #pragma once
-#include "command.h"
+#include "core/command/command.h"
 #include "core/warroom/warroom_types.h"
 
 namespace warroom {
 
-    class MoveNodeCommand : public Command {
+    class ResizeNodeCommand : public Command {
     public:
-        MoveNodeCommand(Uuid nodeId, float oldX, float oldY, float newX, float newY);
+        ResizeNodeCommand(Uuid nodeId,
+            float oldWidth, float oldHeight,
+            float newWidth, float newHeight);
+
         void execute(WarRoomModel& model) override;
         void undo(WarRoomModel& model) override;
         std::string description() const override;
 
     private:
         Uuid nodeId_;
-        float oldX_, oldY_, newX_, newY_;
+        float oldWidth_, oldHeight_;
+        float newWidth_, newHeight_;
         bool executed_ = false;
     };
 

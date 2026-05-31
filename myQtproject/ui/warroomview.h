@@ -4,6 +4,7 @@
 #include <QGraphicsView>
 #include <QWheelEvent>
 #include <QMouseEvent>
+#include <QScrollBar>
 #include "core/warroom/war_room_model.h"
 
 class WarRoomView : public QGraphicsView
@@ -15,13 +16,12 @@ public:
         : QGraphicsView(scene, parent)
     {
         setRenderHint(QPainter::Antialiasing);
-        setDragMode(QGraphicsView::RubberBandDrag);  // 改为框选模式
+        setDragMode(QGraphicsView::RubberBandDrag);   // 左键框选
         setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
         setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
         setResizeAnchor(QGraphicsView::AnchorUnderMouse);
-
         setCursor(Qt::ArrowCursor);
     }
 
@@ -55,10 +55,8 @@ protected:
             // Ctrl + 滚轮：缩放
             const double scaleFactor = 1.15;
             double factor = (event->angleDelta().y() > 0) ? scaleFactor : (1.0 / scaleFactor);
-
             double newScale = m_currentScale * factor;
             if (newScale < 0.1 || newScale > 5.0) return;
-
             m_currentScale = newScale;
             scale(factor, factor);
         }
@@ -71,25 +69,43 @@ protected:
     void mousePressEvent(QMouseEvent* event) override
     {
         if (event->button() == Qt::MiddleButton) {
-            // 中键：平移画布
-            setDragMode(QGraphicsView::ScrollHandDrag);
-            QMouseEvent fakeEvent(event->type(), event->pos(), Qt::LeftButton,
-                Qt::LeftButton, event->modifiers());
-            QGraphicsView::mousePressEvent(&fakeEvent);
+            m_middleButtonPressed = true;
+            m_lastPanPos = event->pos();
+            setCursor(Qt::ClosedHandCursor);
+            event->accept();
+            return;  // 不传递给基类，避免干扰
         }
-        else {
-            QGraphicsView::mousePressEvent(event);
+        QGraphicsView::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override
+    {
+        if (m_middleButtonPressed) {
+            QPoint delta = event->pos() - m_lastPanPos;
+            if (!delta.isNull()) {
+                horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta.x());
+                verticalScrollBar()->setValue(verticalScrollBar()->value() - delta.y());
+                m_lastPanPos = event->pos();
+            }
+            event->accept();
+            return;
         }
+        QGraphicsView::mouseMoveEvent(event);
     }
 
     void mouseReleaseEvent(QMouseEvent* event) override
     {
-        if (event->button() == Qt::MiddleButton) {
-            setDragMode(QGraphicsView::RubberBandDrag);
+        if (event->button() == Qt::MiddleButton && m_middleButtonPressed) {
+            m_middleButtonPressed = false;
+            setCursor(Qt::ArrowCursor);
+            event->accept();
+            return;
         }
         QGraphicsView::mouseReleaseEvent(event);
     }
 
 private:
     double m_currentScale = 1.0;
+    bool m_middleButtonPressed = false;
+    QPoint m_lastPanPos;
 };

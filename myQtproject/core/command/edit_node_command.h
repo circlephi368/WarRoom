@@ -20,6 +20,7 @@ namespace warroom {
         std::string newTitle_;
         std::string oldFullText_;
         std::string newFullText_;
+        bool executed_ = false;
     };
 
 } // namespace warroom

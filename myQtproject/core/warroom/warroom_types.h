@@ -82,8 +82,8 @@ namespace warroom {
 
     // 颜色（简化为十六进制字符串）
     using Color = std::string;
-    constexpr const char* kDefaultNodeColor = "#888888";
-    constexpr const char* kDefaultLinkColor = "#aaaaaa";
+    constexpr const char* kDefaultNodeColor = "#FF888888";
+    constexpr const char* kDefaultLinkColor = "#FFaaaaaa";
 
     // 时间戳
     using Timestamp = std::chrono::system_clock::time_point;

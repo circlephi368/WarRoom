@@ -79,6 +79,9 @@
     <ClCompile Include="ui\WarRoomMainWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="core\command\resize_node_command.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\command\add_link_command.h">
@@ -133,6 +136,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="nlohmann\json_fwd.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\command\resize_node_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -9,6 +9,7 @@
 #include "core/command/delete_node_command.h"
 #include "ui/LinkCreationManager.h"
 #include "core/command/delete_link_command.h"
+#include "core/command/resize_node_command.h"
 #include <QGraphicsScene>
 #include <qinputdialog.h>
 #include <functional>
@@ -53,14 +54,14 @@ void WarRoomMainWindow::populateFromModel()
 	using warroom::LinkType;
 
 	WarNode group = WarNode::makeGroup("主攻方向", 0, -100);
-	group.color= "#e74c3c";
+	group.color= "#80e74c3c";
 	//group.explicit_color = "#e74c3c";
 	Uuid groupId = m_model.addNode(std::move(group), m_model.getDocumentRootId());
 
 	WarNode leaf1 = WarNode::makeLeaf("数据库查询优化", -200, 50);
 	leaf1.tags = { "进行中" };
 
-	leaf1.explicit_color = "#3498db";
+	//leaf1.explicit_color = "#3498db";
 	leaf1.full_text = "test full_text";
 	m_model.addNode(std::move(leaf1), groupId);
 
@@ -70,13 +71,17 @@ void WarRoomMainWindow::populateFromModel()
 
 	WarNode leaf3 = WarNode::makeLeaf("索引重建方案", 300, 50);
 	leaf3.tags = { "失败" };
-	leaf3.explicit_color = "#95a5a6";
+	//leaf3.explicit_color = "#95a5a6";
 	leaf3.width = 300;
 	m_model.addNode(std::move(leaf3), groupId);
 
 	WarNode standalone = WarNode::makeLeaf("网络延迟排查", 500, -100);
-	standalone.explicit_color = "#2ecc71";
+	//standalone.explicit_color = "#2ecc71";
 	m_model.addNode(std::move(standalone), m_model.getDocumentRootId());
+
+	WarNode standalone2 = WarNode::makeLeaf("网络延迟排查2", 600, -200);
+	//standalone2.explicit_color = "#aecc71";
+	m_model.addNode(std::move(standalone2), m_model.getDocumentRootId());
 
 	// 获取已创建节点的 ID（这里手工记录，实际项目会维护映射）
 	// 简便起见：从模型中查询所有节点，找到我们需要的
@@ -128,16 +133,18 @@ void WarRoomMainWindow::populateFromModel()
 			const WarNode* node = m_model.getNode(childId);
 			if (!node) continue;
 
-			QColor color(QString::fromStdString(m_model.getEffectiveColor(childId)));
+			QColor color(QString::fromStdString(m_model.getNodeColor(childId)));
 
-			auto* item = new NodeGraphicsItem(
-				childId, *node,
-				node->title.empty() ? "未命名" : node->title,
-				node->full_text,   // 传入长文本
-				color
-			);
+			auto* item = new NodeGraphicsItem(childId, m_model);
+			// 设置初始位置（已在构造函数中设置，但需要确保模型中有正确的位置）
+
+			// 设置调整大小模式
+			item->setResizingEnabled(!node->is_collapsed);
 
 			item->setPos(node->pos_x, node->pos_y);
+
+			int abs_z = m_model.computeAbsoluteZ(childId);
+			item->updateAbsoluteZ(abs_z);
 
 			// ★ 连接信号：拖拽结束 → 更新模型
 			QObject::connect(item, &NodeGraphicsItem::positionChanged,
@@ -145,7 +152,17 @@ void WarRoomMainWindow::populateFromModel()
 			// moveFinished 连接（用于生成撤销命令）
 			QObject::connect(item, &NodeGraphicsItem::moveFinished,
 				this, &WarRoomMainWindow::onNodeMoveFinished);
-
+			
+			//连接信号：修改节点尺寸
+			QObject::connect(item, &NodeGraphicsItem::sizeChanged,
+				this, &WarRoomMainWindow::onNodeSizeChanged);
+			QObject::connect(item, &NodeGraphicsItem::resizeFinished,
+				this, &WarRoomMainWindow::onNodeResizeFinished);
+			
+			//连接信号：修改z值
+			QObject::connect(item, &NodeGraphicsItem::selectedForZBoost,
+				this, &WarRoomMainWindow::onNodeSelectedForZBoost);
+			
 			m_scene->addItem(item);
 			m_nodeItems.insert(QString::fromStdString(childId), item);
 			createItems(childId);
@@ -172,7 +189,25 @@ void WarRoomMainWindow::onNodeMoveFinished(const std::string& nodeId,
 	auto cmd = std::make_unique<MoveNodeCommand>(nodeId, oldX, oldY, newX, newY);
 	executeCommand(std::move(cmd));
 
-	
+	// 更新移动节点及其所有子孙的 Z 值（因为父节点可能变化）
+	updateSubtreeZValues(nodeId);
+}
+void WarRoomMainWindow::onNodeSizeChanged(const std::string& nodeId, float newWidth, float newHeight)
+{
+	warroom::WarNode* node = m_model.getNodeMutable(nodeId);
+	if (node) {
+		node->width = newWidth;
+		node->height = newHeight;
+	}
+	refreshLinks();  // 刷新连线
+}
+
+void WarRoomMainWindow::onNodeResizeFinished(const std::string& nodeId,
+	float oldWidth, float oldHeight,
+	float newWidth, float newHeight)
+{
+	auto cmd = std::make_unique<warroom::ResizeNodeCommand>(nodeId, oldWidth, oldHeight, newWidth, newHeight);
+	executeCommand(std::move(cmd));
 }
 void WarRoomMainWindow::keyPressEvent(QKeyEvent* event)
 {
@@ -231,19 +266,25 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 				const warroom::WarNode* node = m_model.getNode(childId);
 				if (node) {
 					QColor color(QString::fromStdString(node->color));
-					auto* item = new NodeGraphicsItem(
-						childId, *node,
-						node->title.empty() ? "未命名" : node->title,
-						node->full_text,
-						color,
-						node->kind,
-						node->is_collapsed
-					);
+					auto* item = new NodeGraphicsItem(childId, m_model);
+					// 设置初始位置（已在构造函数中设置，但需要确保模型中有正确的位置）
+					
+					int abs_z = m_model.computeAbsoluteZ(childId);
+					item->updateAbsoluteZ(abs_z);
+
 					item->setPos(node->pos_x, node->pos_y);
+					item->setNodeSize(node->width, node->height);
+					item->setResizingEnabled(!node->is_collapsed);
 					QObject::connect(item, &NodeGraphicsItem::positionChanged,
 						this, &WarRoomMainWindow::onNodeMoved);
 					QObject::connect(item, &NodeGraphicsItem::moveFinished,
 						this, &WarRoomMainWindow::onNodeMoveFinished);
+					QObject::connect(item, &NodeGraphicsItem::sizeChanged,
+						this, &WarRoomMainWindow::onNodeSizeChanged);
+					QObject::connect(item, &NodeGraphicsItem::resizeFinished,
+						this, &WarRoomMainWindow::onNodeResizeFinished);
+					QObject::connect(item, &NodeGraphicsItem::selectedForZBoost,
+						this, &WarRoomMainWindow::onNodeSelectedForZBoost);
 					m_scene->addItem(item);
 					m_nodeItems.insert(key, item);
 				}
@@ -259,14 +300,7 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 		const warroom::WarNode* node = m_model.getNode(it.key().toStdString());
 		if (node) {
 			nodeItem->blockSignals(true);
-			nodeItem->setPos(node->pos_x, node->pos_y);
-			nodeItem->updateContent(
-				node->title.empty() ? "未命名" : node->title,
-				node->full_text,
-				node->is_collapsed
-			);
-			QColor color(QString::fromStdString(node->color));
-			nodeItem->updateColor(color);
+			nodeItem->refresh();
 			nodeItem->blockSignals(false);
 			
 		}
@@ -322,44 +356,51 @@ NodeContext WarRoomMainWindow::captureNodeContext(const warroom::Uuid& nodeId) {
 
 // 删除当前选中的节点
 void WarRoomMainWindow::deleteSelectedNode() {
+	// 先收集所有选中的节点 ID
 	QList<QGraphicsItem*> selected = m_scene->selectedItems();
+	std::vector<std::string> nodeIdsToDelete;
+
 	for (QGraphicsItem* item : selected) {
 		auto* nodeItem = dynamic_cast<NodeGraphicsItem*>(item);
 		if (!nodeItem) continue;
 
 		std::string nodeId = nodeItem->nodeId();
-
-		// 不能删除根节点（可选检查）
+		// 不能删除根节点
 		if (nodeId == m_model.getDocumentRootId()) continue;
 
+		nodeIdsToDelete.push_back(nodeId);
+	}
+
+	// 如果没有选中任何节点，直接返回
+	if (nodeIdsToDelete.empty()) return;
+
+	// 逐个执行（每个删除独立撤销）
+	// 注意：这种方式每个删除操作都会单独出现在撤销栈中
+	for (const auto& nodeId : nodeIdsToDelete) {
 		NodeContext ctx = captureNodeContext(nodeId);
 
 		auto cmd = std::make_unique<warroom::DeleteNodeCommand>(
 			ctx.nodeId, ctx.savedNode, ctx.parentId, ctx.index
 		);
 		executeCommand(std::move(cmd));
-
-		//// 删除图形项
-		//m_nodeItems.remove(QString::fromStdString(nodeId));
-		//delete nodeItem;
-		break;  // 一次只删一个
 	}
-
-	
 }
 //添加节点
-void WarRoomMainWindow::addNodeAtPosition(QPointF scenePos) {
+void WarRoomMainWindow::addNodeAtPosition(QPointF scenePos, const warroom::Uuid& parentId) {
 	warroom::WarNode newNode = warroom::WarNode::makeLeaf("新节点", scenePos.x(), scenePos.y());
 	newNode.full_text = "双击编辑长文本...";
 
+	// parentId 应该已经由调用者保证有效
 	auto cmd = std::make_unique<warroom::AddNodeCommand>(
 		std::move(newNode),
-		m_model.getDocumentRootId(),
+		parentId,  // 直接使用，调用者负责传入正确的ID
 		-1
 	);
 	executeCommand(std::move(cmd));
-
-	
+}
+//添加节点
+void WarRoomMainWindow::addNodeAtPosition(QPointF scenePos) {
+	addNodeAtPosition(scenePos, m_model.getDocumentRootId());
 }
 
 // 编辑节点（双击时调用）
@@ -384,21 +425,27 @@ void WarRoomMainWindow::editNode(const std::string& nodeId) {
 		
 	}
 }
-void WarRoomMainWindow::contextMenuEvent(QContextMenuEvent* event) {
-	QPointF scenePos = m_view->mapToScene(event->pos());
+void WarRoomMainWindow::contextMenuEvent(QContextMenuEvent* event)
+{
+	// 将事件坐标转换为相对于 view 的坐标
+	QPoint viewPos = m_view->mapFromGlobal(event->globalPos());
+	// 再映射到场景坐标
+	QPointF scenePos = m_view->mapToScene(viewPos);
+
 	QGraphicsItem* item = m_scene->itemAt(scenePos, QTransform());
 
 	QMenu menu(this);
 
-	if (dynamic_cast<NodeGraphicsItem*>(item)) {
+	auto* nodeItem = dynamic_cast<NodeGraphicsItem*>(item);
+	if (nodeItem) {
 		menu.addAction("删除节点", this, &WarRoomMainWindow::deleteSelectedNode);
-		menu.addAction("编辑节点", this, [this, item]() {
-			auto* nodeItem = dynamic_cast<NodeGraphicsItem*>(item);
+		menu.addAction("编辑节点", this, [this, nodeItem]() {
 			if (nodeItem) editNode(nodeItem->nodeId());
 			});
 		menu.addSeparator();
-		menu.addAction("添加子节点", this, [this, scenePos]() {
-			addNodeAtPosition(scenePos);
+		warroom::Uuid parentId = nodeItem->nodeId();
+		menu.addAction("添加子节点", [this, scenePos, parentId]() {
+			addNodeAtPosition(scenePos, parentId);
 			});
 	}
 	else {
@@ -412,30 +459,31 @@ void WarRoomMainWindow::contextMenuEvent(QContextMenuEvent* event) {
 void WarRoomMainWindow::onSaveAction() {
 	QString path = m_currentFilePath;
 	if (path.isEmpty()) {
-		path = QFileDialog::getSaveFileName(this, "保存作战图", "", "WarRoom文件 (*.warroom)");
+		// 使用 getSaveFileName 的默认扩展名功能
+		path = QFileDialog::getSaveFileName(this, "保存作战图", "",
+			"WarRoom文件 (*.warroom)", nullptr, QFileDialog::DontConfirmOverwrite);
 	}
 	if (path.isEmpty()) return;
 
-	// 先同步视图状态到模型
+	// 同步视图状态到模型
 	if (m_view) {
 		warroom::Point2D viewCenter = m_view->getViewCenter();
 		m_model.setCameraView(viewCenter, m_view->getZoomLevel());
 	}
 
-	std::string fullPath = path.toStdString();
-	if (fullPath.find(".warroom") == std::string::npos) {
-		fullPath += ".warroom";
+	// 确保有正确的扩展名
+	if (!path.endsWith(".warroom", Qt::CaseInsensitive)) {
+		path += ".warroom";
 	}
 
-	if (m_model.saveToFile(fullPath)) {
-		m_currentFilePath = QString::fromStdString(fullPath);
+	if (m_model.saveToFile(path.toStdString())) {
+		m_currentFilePath = path;
 		QMessageBox::information(this, "保存成功", "文件已保存");
 	}
 	else {
 		QMessageBox::warning(this, "保存失败", "无法保存文件");
 	}
 }
-
 void WarRoomMainWindow::onLoadAction() {
 	QString path = QFileDialog::getOpenFileName(this, "加载作战图", "", "WarRoom文件 (*.warroom)");
 	if (path.isEmpty()) return;
@@ -516,21 +564,31 @@ void WarRoomMainWindow::rebuildFromModel() {
 			const warroom::WarNode* node = m_model.getNode(childId);
 			if (!node) continue;
 
-			QColor color(QString::fromStdString(m_model.getEffectiveColor(childId)));
+			QColor color(QString::fromStdString(m_model.getNodeColor(childId)));
 
-			auto* item = new NodeGraphicsItem(
-				childId, *node,
-				node->title.empty() ? "未命名" : node->title,
-				node->full_text,
-				color
-			);
+			auto* item = new NodeGraphicsItem(childId, m_model);
+			// 设置调整大小模式
+			item->setResizingEnabled(!node->is_collapsed);
 
 			item->setPos(node->pos_x, node->pos_y);
+
+			int abs_z = m_model.computeAbsoluteZ(childId);
+			item->updateAbsoluteZ(abs_z);
 
 			QObject::connect(item, &NodeGraphicsItem::positionChanged,
 				this, &WarRoomMainWindow::onNodeMoved);
 			QObject::connect(item, &NodeGraphicsItem::moveFinished,
 				this, &WarRoomMainWindow::onNodeMoveFinished);
+			
+			//连接信号：修改节点尺寸
+			QObject::connect(item, &NodeGraphicsItem::sizeChanged,
+				this, &WarRoomMainWindow::onNodeSizeChanged);
+			QObject::connect(item, &NodeGraphicsItem::resizeFinished,
+				this, &WarRoomMainWindow::onNodeResizeFinished);
+
+			//连接信号：修改z值
+			QObject::connect(item, &NodeGraphicsItem::selectedForZBoost,
+				this, &WarRoomMainWindow::onNodeSelectedForZBoost);
 
 			m_scene->addItem(item);
 			m_nodeItems.insert(QString::fromStdString(childId), item);
@@ -833,4 +891,49 @@ void WarRoomMainWindow::deleteLink(const warroom::Uuid& linkId)
 			}
 		}
 	}
+}
+void WarRoomMainWindow::updateSubtreeZValues(const std::string& nodeId) {
+	// 更新当前节点
+	NodeGraphicsItem* item = m_nodeItems.value(QString::fromStdString(nodeId));
+	if (item) {
+		int abs_z = m_model.computeAbsoluteZ(nodeId);
+		item->updateAbsoluteZ(abs_z);
+	}
+
+	// 递归更新子节点
+	const warroom::WarNode* node = m_model.getNode(nodeId);
+	if (node) {
+		for (const auto& childId : node->children_ids) {
+			updateSubtreeZValues(childId);
+		}
+	}
+}
+
+void WarRoomMainWindow::onNodeSelectedForZBoost(const std::string& nodeId)
+{
+	warroom::WarNode* node = m_model.getNodeMutable(nodeId);
+	if (!node) return;
+
+	// 1. 计算当前所有节点的最高绝对 Z 值
+	int max_abs_z = 0;
+	for (const auto& [id, n] : m_model.getAllNodes()) {
+		int abs_z = m_model.computeAbsoluteZ(id);
+		if (abs_z > max_abs_z) max_abs_z = abs_z;
+	}
+
+	// 2. 计算当前节点的绝对 Z 值
+	int current_abs_z = m_model.computeAbsoluteZ(nodeId);
+
+	// 3. 如果已经是最高的，不需要调整
+	if (current_abs_z > max_abs_z) return;
+
+	// 4. 计算需要增加的 relative_z
+	int target_abs_z = max_abs_z + 1;
+	int delta = target_abs_z - current_abs_z;
+	node->relative_z += delta;
+
+	// 5. 更新该节点及其所有子孙的 Z 值
+	updateSubtreeZValues(nodeId);
+
+	refreshLinks();
 }

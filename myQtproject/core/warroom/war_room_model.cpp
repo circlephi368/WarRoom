@@ -32,6 +32,7 @@ namespace warroom {
 		root.id = generateUuid();
 		root.kind = NodeKind::Group;
 		root.title = "Document Root";
+		root.color = kDefaultNodeColor;//根节点默认设置颜色
 		root.pos_x = 0;
 		root.pos_y = 0;
 		root.is_collapsed = false;
@@ -288,5 +289,21 @@ namespace warroom {
 			collectSubtreeIds(child_id, out_ids);
 		}
 	}
+	int WarRoomModel::computeAbsoluteZ(Uuid node_id) const {
+		const WarNode* node = getNode(node_id);
+		if (!node) return 0;
 
+		int abs_z = node->relative_z;
+		Uuid current_parent = node->parent_id;
+
+		// 向上累加，直到根节点（document_root_id_ 本身不是可见节点，不计入）
+		while (!current_parent.empty() && current_parent != document_root_id_) {
+			const WarNode* parent = getNode(current_parent);
+			if (!parent) break;
+			abs_z += parent->relative_z;
+			current_parent = parent->parent_id;
+		}
+
+		return abs_z;
+	}
 } // namespace warroom

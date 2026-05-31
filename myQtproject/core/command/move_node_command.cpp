@@ -9,11 +9,13 @@ namespace warroom {
 
     void MoveNodeCommand::execute(WarRoomModel& model)
     {
+        if (executed_) return;
         WarNode* node = model.getNodeMutable(nodeId_);
         if (node) {
             node->pos_x = newX_;
             node->pos_y = newY_;
         }
+        executed_ = true;
     }
 
     void MoveNodeCommand::undo(WarRoomModel& model)

@@ -17,8 +17,8 @@ namespace warroom {
         const Uuid& getLinkId() const { return linkId_; }
 
     private:
-        WarLink link_;
         Uuid linkId_;
+        WarLink link_;
         bool executed_ = false;
     };
 

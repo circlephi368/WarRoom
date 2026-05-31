@@ -5,8 +5,8 @@
 namespace warroom {
 
     AddLinkCommand::AddLinkCommand(WarLink link)
-        : link_(std::move(link))
-        , linkId_(link_.id)
+        : linkId_(link.id)
+        , link_(std::move(link))
     {}
 
     void AddLinkCommand::execute(WarRoomModel& model) {

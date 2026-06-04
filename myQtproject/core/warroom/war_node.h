@@ -47,6 +47,9 @@ namespace warroom {
         // ---- 空间位置 ----
         float pos_x = 0.0f;
         float pos_y = 0.0f;
+        //相对坐标
+        float rel_x = 0.0f;   // 相对于父节点的 X
+        float rel_y = 0.0f;   // 相对于父节点的 Y
 
         // ---- 分组专属 ----
         bool is_collapsed = false;

@@ -33,7 +33,9 @@ namespace warroom {
 		const std::unordered_map<Uuid, WarNode>& getAllNodes() const { return nodes_; }
 		void setNodeColor(Uuid node_id, Color color);
 		void setNodesize(Uuid node_id, float width, float height);
-
+		void rebuildRelativeCoordinates();
+		void updateAbsolutePositionRecursive(Uuid node_id);
+		void updateAbsolutePosition(Uuid node_id);  // 更新单个节点（基于父节点）
 
 		// ---- 查询 ----
 		std::vector<Uuid> getChildren(Uuid parent_id) const;

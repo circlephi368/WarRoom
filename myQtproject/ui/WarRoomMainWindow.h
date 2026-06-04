@@ -57,6 +57,7 @@ private:
 	// 拖拽回写
 	void onNodeMoved(const std::string& nodeId, float newX, float newY);
 	void onNodeMoveFinished(const std::string& nodeId, float oldX, float oldY, float newX, float newY);  // 新增
+	void refreshNodePositionRecursive(const std::string& nodeId);
 	void onNodeSizeChanged(const std::string& nodeId, float newWidth, float newHeight);
 	void onNodeResizeFinished(const std::string& nodeId, float oldWidth, float oldHeight, float newWidth, float newHeight);
 	void keyPressEvent(QKeyEvent* event) override;  // 新增，用于 Ctrl+Z / Ctrl+Y
@@ -64,7 +65,7 @@ private:
 	void syncAllItemsFromModel();
 
 	void refreshLinks();
-
+	
 	// 统一的命令执行包装，自动触发视图同步
 	void executeCommand(std::unique_ptr<warroom::Command> cmd);
 

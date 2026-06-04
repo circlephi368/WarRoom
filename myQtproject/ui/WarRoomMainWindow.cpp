@@ -61,7 +61,7 @@ void WarRoomMainWindow::populateFromModel()
 	WarNode leaf1 = WarNode::makeLeaf("数据库查询优化", -200, 50);
 	leaf1.tags = { "进行中" };
 
-	//leaf1.explicit_color = "#3498db";
+	leaf1.color = "#80e74c3c";
 	leaf1.full_text = "test full_text";
 	m_model.addNode(std::move(leaf1), groupId);
 
@@ -176,22 +176,87 @@ void WarRoomMainWindow::onNodeMoved(const std::string& nodeId, float newX, float
 {
 	warroom::WarNode* node = m_model.getNodeMutable(nodeId);
 	if (!node) return;
+
+	// 计算偏移量
+	float deltaX = newX - node->pos_x;
+	float deltaY = newY - node->pos_y;
+
+	// 更新当前节点
 	node->pos_x = newX;
 	node->pos_y = newY;
-	// 拖拽过程中也刷新连线，保持实时跟随
+
+	// 【关键】实时移动子节点 UI
+	for (const auto& childId : node->children_ids) {
+		NodeGraphicsItem* childItem = m_nodeItems.value(QString::fromStdString(childId));
+		if (childItem) {
+			QPointF currentPos = childItem->pos();
+			childItem->setPos(currentPos.x() + deltaX, currentPos.y() + deltaY);
+		}
+	}
+
+	// 实时刷新连线
 	refreshLinks();
 }
 void WarRoomMainWindow::onNodeMoveFinished(const std::string& nodeId,
 	float oldX, float oldY,
 	float newX, float newY)
 {
-	using warroom::MoveNodeCommand;
-	auto cmd = std::make_unique<MoveNodeCommand>(nodeId, oldX, oldY, newX, newY);
+	warroom::WarNode* node = m_model.getNodeMutable(nodeId);
+	if (!node) return;
+
+	// 计算偏移量
+	float deltaX = newX - oldX;
+	float deltaY = newY - oldY;
+
+	// 更新当前节点的相对坐标
+	const warroom::WarNode* parent = m_model.getNode(node->parent_id);
+	if (parent && node->parent_id != m_model.getDocumentRootId()) {
+		node->rel_x = newX - parent->pos_x;
+		node->rel_y = newY - parent->pos_y;
+	}
+	else {
+		node->rel_x = newX;
+		node->rel_y = newY;
+	}
+
+	node->pos_x = newX;
+	node->pos_y = newY;
+
+	// 更新所有子孙节点的绝对坐标（模型层面）
+	for (const auto& childId : node->children_ids) {
+		m_model.updateAbsolutePositionRecursive(childId);
+	}
+
+	// 同步子孙节点 UI 位置
+	for (const auto& childId : node->children_ids) {
+		refreshNodePositionRecursive(childId);
+	}
+
+	// 创建撤销命令
+	auto cmd = std::make_unique<warroom::MoveNodeCommand>(nodeId, oldX, oldY, newX, newY);
 	executeCommand(std::move(cmd));
 
-	// 更新移动节点及其所有子孙的 Z 值（因为父节点可能变化）
-	updateSubtreeZValues(nodeId);
+	// 刷新连线
+	refreshLinks();
 }
+
+void WarRoomMainWindow::refreshNodePositionRecursive(const std::string& nodeId)
+{
+	NodeGraphicsItem* item = m_nodeItems.value(QString::fromStdString(nodeId));
+	const warroom::WarNode* node = m_model.getNode(nodeId);
+	if (item && node) {
+		item->blockSignals(true);
+		item->setPos(node->pos_x, node->pos_y);
+		item->blockSignals(false);
+	}
+
+	if (node) {
+		for (const auto& childId : node->children_ids) {
+			refreshNodePositionRecursive(childId);
+		}
+	}
+}
+
 void WarRoomMainWindow::onNodeSizeChanged(const std::string& nodeId, float newWidth, float newHeight)
 {
 	warroom::WarNode* node = m_model.getNodeMutable(nodeId);

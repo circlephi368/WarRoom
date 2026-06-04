@@ -61,13 +61,24 @@ namespace warroom {
 		}
 		node.parent_id = parent_id;
 
-		// 添加到父节点的 children_ids
-		auto& parent = nodes_[parent_id];
-		if (index < 0 || index >= static_cast<int>(parent.children_ids.size())) {
-			parent.children_ids.push_back(node_id);
+		// 初始化相对坐标：如果父节点是根节点，则 rel = abs；否则 rel = abs - parent_abs
+		const WarNode* parent = getNode(parent_id);
+		if (parent && parent_id != document_root_id_) {
+			node.rel_x = node.pos_x - parent->pos_x;
+			node.rel_y = node.pos_y - parent->pos_y;
 		}
 		else {
-			parent.children_ids.insert(parent.children_ids.begin() + index, node_id);
+			node.rel_x = node.pos_x;
+			node.rel_y = node.pos_y;
+		}
+
+		// 添加到父节点的 children_ids
+		auto& parentNode = nodes_[parent_id];
+		if (index < 0 || index >= static_cast<int>(parentNode.children_ids.size())) {
+			parentNode.children_ids.push_back(node_id);
+		}
+		else {
+			parentNode.children_ids.insert(parentNode.children_ids.begin() + index, node_id);
 		}
 
 		nodes_[node_id] = std::move(node);
@@ -137,6 +148,60 @@ namespace warroom {
 	void WarRoomModel::setNodesize(Uuid node_id, float width, float height){
 		getNodeMutable(node_id)->width = width;
 		getNodeMutable(node_id)->height = height;
+	}
+
+	void WarRoomModel::updateAbsolutePosition(Uuid node_id) {
+		WarNode* node = getNodeMutable(node_id);
+		if (!node) return;
+
+		if (node->parent_id.empty() || node->parent_id == document_root_id_) {
+			// 顶层节点：绝对坐标 = 相对坐标
+			node->pos_x = node->rel_x;
+			node->pos_y = node->rel_y;
+		}
+		else {
+			const WarNode* parent = getNode(node->parent_id);
+			if (parent) {
+				node->pos_x = parent->pos_x + node->rel_x;
+				node->pos_y = parent->pos_y + node->rel_y;
+			}
+		}
+	}
+	// 从绝对坐标重建相对坐标
+	void WarRoomModel::rebuildRelativeCoordinates() {
+		std::function<void(const Uuid&)> rebuildRecursive = [&](const Uuid& nodeId) {
+			WarNode* node = getNodeMutable(nodeId);
+			if (!node) return;
+
+			const WarNode* parent = getNode(node->parent_id);
+			if (parent && node->parent_id != document_root_id_) {
+				// 有父节点：相对坐标 = 绝对坐标 - 父节点绝对坐标
+				node->rel_x = node->pos_x - parent->pos_x;
+				node->rel_y = node->pos_y - parent->pos_y;
+			}
+			else {
+				// 根节点或顶层节点：相对坐标 = 绝对坐标
+				node->rel_x = node->pos_x;
+				node->rel_y = node->pos_y;
+			}
+
+			// 递归处理子节点
+			for (const auto& childId : node->children_ids) {
+				rebuildRecursive(childId);
+			}
+			};
+
+		rebuildRecursive(document_root_id_);
+	}
+	void WarRoomModel::updateAbsolutePositionRecursive(Uuid node_id) {
+		updateAbsolutePosition(node_id);
+
+		WarNode* node = getNodeMutable(node_id);
+		if (!node) return;
+
+		for (const Uuid& child_id : node->children_ids) {
+			updateAbsolutePositionRecursive(child_id);
+		}
 	}
 
 	std::vector<Uuid> WarRoomModel::getChildren(Uuid parent_id) const {

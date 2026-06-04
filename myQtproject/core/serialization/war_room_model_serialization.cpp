@@ -444,6 +444,9 @@ namespace warroom {
 				camera_position = fromJsonPoint(j["camera_position"]);
 			}
 			zoom_level = j.value("zoom_level", 1.0f);
+			
+			// 重建所有节点的相对坐标
+			rebuildRelativeCoordinates();
 
 			return true;
 		}

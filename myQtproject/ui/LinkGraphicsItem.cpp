@@ -11,7 +11,7 @@
 // 构造
 // ---------------------------------------------------------------------------
 LinkGraphicsItem::LinkGraphicsItem(const warroom::Uuid& linkId,
-    const warroom::WarRoomModel& model,
+     warroom::WarRoomModel& model,
     QGraphicsItem* parent)
     : QGraphicsObject(parent)
     , m_linkId(linkId)
@@ -62,6 +62,7 @@ void LinkGraphicsItem::updatePositions()
 
     // 更新命中区域
     updateHitArea();
+    updateZValueFromNodes();
 }
 
 // ---------------------------------------------------------------------------
@@ -273,7 +274,40 @@ void LinkGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
 void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
 {
     QMenu menu;
+
+    // 删除连线选项
     QAction* deleteAction = menu.addAction("删除连线");
+
+    // ========== 颜色子菜单 ==========
+    QMenu* colorMenu = menu.addMenu("修改颜色");
+
+    // 预设颜色列表 (名称, 十六进制颜色值)
+    struct ColorPreset {
+        const char* name;
+        const char* hexColor;
+    };
+
+    std::vector<ColorPreset> presets = {
+        {"默认", "#FFaaaaaa"},      // kDefaultLinkColor
+        {"红色", "#FFE74C3C"},
+        {"绿色", "#FF2ECC71"},
+        {"蓝色", "#FF3498DB"},
+        {"黄色", "#FFF1C40F"},
+        {"紫色", "#FF9B59B6"},
+        {"橙色", "#FFE67E22"},
+        {"青色", "#FF1ABC9C"}
+    };
+
+    for (const auto& preset : presets) {
+        colorMenu->addAction(preset.name, [this, preset]() {
+            warroom::WarLink* link = m_model.getLinkMutable(m_linkId);
+            if (link) {
+                link->color = preset.hexColor;
+                update();  // 触发重绘
+            }
+            });
+    }
+    // ====================================
 
     QAction* selectedAction = menu.exec(event->screenPos());
 
@@ -282,5 +316,46 @@ void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
         if (auto* mainWindow = qobject_cast<WarRoomMainWindow*>(scene()->views().first()->parent())) {
             mainWindow->deleteLink(m_linkId);
         }
+    }
+}
+
+void LinkGraphicsItem::updateZValueFromNodes()
+{
+    const warroom::WarLink* link = m_model.getLink(m_linkId);
+    if (!link) return;
+
+    int maxZ = -999999;
+    bool hasNodeAnchor = false;
+
+    // 检查起点
+    if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(link->start_anchor.get())) {
+        hasNodeAnchor = true;
+        int z = m_model.computeAbsoluteZ(na->node_id);
+        if (z > maxZ) maxZ = z;
+    }
+
+    // 检查终点
+    if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(link->end_anchor.get())) {
+        hasNodeAnchor = true;
+        int z = m_model.computeAbsoluteZ(na->node_id);
+        if (z > maxZ) maxZ = z;
+    }
+
+    // 检查路径点中的节点锚点（如果有）
+    for (const auto& wp : link->waypoints) {
+        if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(wp.get())) {
+            hasNodeAnchor = true;
+            int z = m_model.computeAbsoluteZ(na->node_id);
+            if (z > maxZ) maxZ = z;
+        }
+    }
+
+    if (hasNodeAnchor) {
+        // 连线至少有一端连节点，取最大 Z 值，再 +0.5 使其略高于节点，避免视觉重叠闪烁
+        setZValue(static_cast<qreal>(maxZ) + 0.5);
+    }
+    else {
+        // 两端都没有节点（Free ↔ Free），保持默认值 -1
+        setZValue(-1);
     }
 }

@@ -245,6 +245,11 @@ namespace warroom {
 		return (it != links_.end()) ? &it->second : nullptr;
 	}
 
+	WarLink* WarRoomModel::getLinkMutable(Uuid id) {
+		auto it = links_.find(id);
+		return (it != links_.end()) ? &it->second : nullptr;
+	}
+
 	Uuid WarRoomModel::addLink(WarLink link) {
 		Uuid link_id = link.id;
 		if (link_id.empty()) link_id = generateUuid();

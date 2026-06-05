@@ -48,6 +48,7 @@ namespace warroom {
 
 		// ---- 连线操作 ----
 		const WarLink* getLink(Uuid id) const;
+		WarLink* getLinkMutable(Uuid id);
 		Uuid addLink(WarLink link);
 		bool removeLink(Uuid id);
 		std::vector<Uuid> getLinksForNode(Uuid node_id) const;

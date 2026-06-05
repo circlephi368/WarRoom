@@ -82,6 +82,9 @@
     <ClCompile Include="core\command\resize_node_command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ui\CustomTextEdit.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\command\add_link_command.h">
@@ -162,6 +165,9 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="ui\ConnectionAnchor.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ui\CustomTextEdit.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

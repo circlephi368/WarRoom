@@ -1,4 +1,5 @@
 #include "NodeGraphicsItem.h"
+#include "CustomTextEdit.h"
 #include <qcursor.h>
 
 // ==================== 构造函数 ====================
@@ -8,6 +9,9 @@ NodeGraphicsItem::NodeGraphicsItem(const std::string& nodeId, warroom::WarRoomMo
     setFlags(ItemIsSelectable | ItemIsMovable | ItemSendsGeometryChanges);
     setAcceptHoverEvents(true);
     createAnchors();
+
+    // 初始化预览文档
+    initializePreviewDocument();
 
     // 从模型获取初始位置
     const warroom::WarNode* node = getNode();
@@ -25,6 +29,88 @@ const warroom::WarNode* NodeGraphicsItem::getNode() const
 warroom::WarNode* NodeGraphicsItem::getNodeMutable()
 {
     return m_model.getNodeMutable(m_nodeId);
+}
+
+void NodeGraphicsItem::createInlineEditor() {
+    if (m_editorProxy) return;
+
+    /*m_textEdit = new QTextEdit();
+    m_textEdit->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_textEdit->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_textEdit->setFrameShape(QFrame::NoFrame);
+    m_textEdit->document()->setDefaultFont(m_editorFont);
+    m_textEdit->document()->setTextWidth(getWidth() - m_textPadding * 2);*/
+    auto* customEdit = new CustomTextEdit();  // 使用自定义编辑器
+    m_textEdit = customEdit;  // 赋值给 QTextEdit*（多态）
+    // 配置
+    customEdit->setTransparentMode(true);
+    customEdit->setCustomScrollbar(true);
+
+    // 加载现有内容
+    const warroom::WarNode* node = getNode();
+    if (node) {
+        m_textEdit->setMarkdown(QString::fromStdString(node->full_text));
+    }
+
+    m_editorProxy = new QGraphicsProxyWidget(this);
+    m_editorProxy->setWidget(m_textEdit);
+    m_editorProxy->setPos(m_textPadding, m_textPadding);
+    m_editorProxy->setZValue(100);
+
+    // 重要：设置代理大小
+    m_editorProxy->resize(getWidth() - m_textPadding * 2, getHeight() - m_textPadding * 2);
+
+    m_textEdit->setFocus();
+
+    // 使用事件过滤器监听焦点丢失
+    m_textEdit->installEventFilter(this);
+}
+
+void NodeGraphicsItem::saveContentToModel() {
+    if (!m_textEdit) return;
+
+    warroom::WarNode* node = getNodeMutable();
+    if (node) {
+        std::string newContent = m_textEdit->toMarkdown().toStdString();
+        if (node->full_text != newContent) {
+            node->full_text = newContent;
+            // 可选：通知外部刷新（如撤销栈）
+        }
+    }
+}
+
+void NodeGraphicsItem::saveAndExitEditMode() {
+    if (m_editMode != EditMode::Editing) return;
+
+    saveContentToModel();
+    destroyEditor();
+    m_editMode = EditMode::Preview;
+    refreshPreviewDocument();   // 重新加载模型内容到预览文档
+    update();                   // 触发重绘
+}
+
+void NodeGraphicsItem::refreshPreviewDocument() {
+    const warroom::WarNode* node = getNode();
+    if (!node) return;
+
+    m_previewDocument.setDefaultFont(m_editorFont);
+    m_previewDocument.setTextWidth(getWidth() - m_textPadding * 2);
+    m_previewDocument.setMarkdown(QString::fromStdString(node->full_text));
+}
+
+void NodeGraphicsItem::updateEditorGeometry() {
+    if (m_editorProxy) {
+        m_editorProxy->resize(getWidth() - m_textPadding * 2, getHeight() - m_textPadding * 2);
+        if (m_textEdit) {
+            m_textEdit->document()->setTextWidth(getWidth() - m_textPadding * 2);
+        }
+    }
+}
+
+void NodeGraphicsItem::initializePreviewDocument() {
+    m_previewDocument.setDefaultFont(m_editorFont);
+    m_previewDocument.setTextWidth(getWidth() - m_textPadding * 2);
+    refreshPreviewDocument();  // 加载内容
 }
 
 float NodeGraphicsItem::getWidth() const
@@ -59,56 +145,30 @@ void NodeGraphicsItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
 
     QRectF rect = boundingRect().adjusted(2, 2, -2, -2);
 
-    // 从模型获取颜色
+    // 绘制背景
     QColor color(QString::fromStdString(node->color));
     painter->setBrush(color);
     painter->setPen(QPen(color.darker(150), 2));
     painter->drawRoundedRect(rect, 8, 8);
 
-    painter->setPen(Qt::white);
-    QFont font("Microsoft YaHei", 10, QFont::Bold);
-    painter->setFont(font);
+    //// 绘制标题（始终显示）
+    //painter->setPen(Qt::white);
+    //QFont font("Microsoft YaHei", 10, QFont::Bold);
+    //painter->setFont(font);
 
-    // 获取实际文本
-    std::string displayText;
-    if (node->kind == warroom::NodeKind::Group) {
-        displayText = node->title;
-    }
-    else if (node->is_collapsed) {
-        displayText = node->title;
-    }
-    else {
-        displayText = node->full_text.empty() ? node->title : node->full_text;
-    }
-    if (displayText.empty()) {
-        displayText = "未命名";
-    }
+    //QString title = QString::fromStdString(node->title);
+    //if (title.isEmpty()) title = "未命名";
 
-    QString text = QString::fromStdString(displayText);
-    QRectF textRect = rect.adjusted(10, 5, -10, -5);
+    //QRectF titleRect = rect.adjusted(10, 5, -10, -25);
+    //painter->drawText(titleRect, Qt::AlignLeft | Qt::AlignTop, title);
 
-    // 自动换行 + 省略
-    QFontMetrics fm(font);
-    QStringList lines;
-    QString remaining = text;
-    while (!remaining.isEmpty()) {
-        QString line = fm.elidedText(remaining, Qt::ElideRight, static_cast<int>(textRect.width()));
-        if (line.isEmpty()) break;
-        lines.append(line);
-        remaining = remaining.mid(line.length());
-        if (lines.size() >= 3) {
-            lines.last() = fm.elidedText(lines.last() + "…", Qt::ElideRight, static_cast<int>(textRect.width()));
-            break;
-        }
-    }
-
-    // 绘制多行文本
-    qreal yOffset = textRect.top();
-    QFontMetrics fmMulti(font);
-    for (int i = 0; i < lines.size(); ++i) {
-        painter->drawText(QRectF(textRect.left(), yOffset, textRect.width(), fmMulti.height()),
-            Qt::AlignLeft | Qt::AlignTop, lines[i]);
-        yOffset += fmMulti.height();
+    // 预览模式下绘制内容
+    if (m_editMode == EditMode::Preview) {
+        painter->save();
+        painter->translate(m_textPadding, m_textPadding);  // 偏移标题高度
+        QRectF clipRect(0, 0, getWidth() - m_textPadding * 2, getHeight() - m_textPadding * 2 - 20);
+        m_previewDocument.drawContents(painter, clipRect);
+        painter->restore();
     }
 
     // 选中高亮
@@ -177,7 +237,8 @@ void NodeGraphicsItem::refresh()
             !qFuzzyCompare(static_cast<float>(pos().y()), node->pos_y)) {
             setPos(node->pos_x, node->pos_y);
         }
-
+        // 刷新预览文档内容
+        refreshPreviewDocument();
         // 如果大小变了，需要更新锚点位置
         updateAnchorsPosition();
     }
@@ -196,9 +257,40 @@ void NodeGraphicsItem::setNodeSize(float width, float height)
     prepareGeometryChange();
     node->width = width;
     node->height = height;
+
+    // 更新预览文档宽度
+    m_previewDocument.setTextWidth(width - m_textPadding * 2);
+
+    // 如果编辑器存在，也更新编辑器大小
+    if (m_editorProxy) {
+        m_editorProxy->resize(width - m_textPadding * 2, height - m_textPadding * 2);
+        if (m_textEdit) {
+            m_textEdit->document()->setTextWidth(width - m_textPadding * 2);
+        }
+    }
+
     updateAnchorsPosition();
     update();
     emit sizeChanged(m_nodeId, width, height);
+}
+
+void NodeGraphicsItem::setEditMode(EditMode mode) {
+    if (m_editMode == mode) return;
+
+    if (mode == EditMode::Editing) {
+        createInlineEditor();
+    }
+    else {
+        saveAndExitEditMode();
+    }
+}
+
+void NodeGraphicsItem::destroyEditor() {
+    if (m_editorProxy) {
+        delete m_editorProxy;  // 会自动删除 m_textEdit
+        m_editorProxy = nullptr;
+        m_textEdit = nullptr;
+    }
 }
 
 // ==================== 悬停事件 ====================
@@ -217,6 +309,26 @@ void NodeGraphicsItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
         if (anchor) anchor->hide();
     }
     QGraphicsObject::hoverLeaveEvent(event);
+}
+
+void NodeGraphicsItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
+    if (m_editMode == EditMode::Preview) {
+        emit editRequested(m_nodeId);  // 通知 MainWindow 先清理其他编辑器
+        m_editMode = EditMode::Editing;
+        createInlineEditor();
+        event->accept();
+        return;
+    }
+    QGraphicsObject::mouseDoubleClickEvent(event);
+}
+
+bool NodeGraphicsItem::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_textEdit && event->type() == QEvent::FocusOut) {
+        // 使用延迟调用，避免在事件处理中直接删除对象
+        QMetaObject::invokeMethod(this, "saveAndExitEditMode", Qt::QueuedConnection);
+        return false;
+    }
+    return QGraphicsObject::eventFilter(watched, event);
 }
 
 // ==================== 项目变化事件 ====================
@@ -326,6 +438,12 @@ void NodeGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
                 prepareGeometryChange();
                 node->width = newWidth;
                 node->height = newHeight;
+
+                // 如果正在编辑，同步更新编辑器大小
+                if (m_editorProxy) {
+                    updateEditorGeometry();
+                }
+
                 updateAnchorsPosition();
                 update();
                 emit sizeChanged(m_nodeId, newWidth, newHeight);
@@ -460,4 +578,44 @@ void NodeGraphicsItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
 // 刷新绝对z值
 void NodeGraphicsItem::updateAbsoluteZ(int absolute_z) {
     setZValue(absolute_z);
+}
+
+void NodeGraphicsItem::updateCustomBoundingRect()
+{
+    // 自身包围盒（从 Qt 的 boundingRect 获取）
+    QRectF selfRect = boundingRect();
+
+    // 如果是叶子节点或没有子节点图形项，直接使用自身
+    // 注意：这里需要从外部获取子节点的图形项，所以需要传入映射表
+    // 实际调用时通过 rebuildAllBoundingRects 统一处理更方便
+    m_customBoundingRect = selfRect;
+}
+
+void NodeGraphicsItem::rebuildAllBoundingRects(QHash<QString, NodeGraphicsItem*>& nodeItems)
+{
+    // 后序遍历：先计算子节点，再计算父节点
+    std::function<void(NodeGraphicsItem*)> computeRecursive = [&](NodeGraphicsItem* item) {
+        if (!item) return;
+
+        QRectF rect = item->boundingRect();
+
+        // 合并所有子节点的包围盒
+        for (auto* childItem : item->childItems()) {
+            auto* nodeChild = dynamic_cast<NodeGraphicsItem*>(childItem);
+            if (nodeChild) {
+                computeRecursive(nodeChild);
+                rect = rect.united(nodeChild->getCustomBoundingRect());
+            }
+        }
+
+        item->m_customBoundingRect = rect;
+        };
+
+    // 遍历所有顶层节点
+    for (auto* item : nodeItems) {
+        NodeGraphicsItem* nodeItem = item;
+        if (nodeItem && !nodeItem->parentItem()) {  // 顶层节点
+            computeRecursive(nodeItem);
+        }
+    }
 }

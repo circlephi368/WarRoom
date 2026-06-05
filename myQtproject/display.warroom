@@ -1,0 +1,268 @@
+{
+  "camera_position": {
+    "x": -102.0,
+    "y": 19.0
+  },
+  "document_root_id": "a28aadc6-cbba-436b-a060-df290033224b",
+  "links": [
+    {
+      "color": "#3498db",
+      "end_anchor": {
+        "edge": 3,
+        "node_id": "0b73f502-7fba-4b66-8d77-1c4759e74090",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "777fa179-980d-43dc-a381-a4cf55bebb91",
+      "label": "",
+      "start_anchor": {
+        "edge": 1,
+        "node_id": "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "dependency",
+      "waypoints": []
+    },
+    {
+      "color": "#3498db",
+      "end_anchor": {
+        "edge": 3,
+        "node_id": "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "669b98ca-4151-475d-aa15-f368400d8b22",
+      "label": "",
+      "start_anchor": {
+        "edge": 1,
+        "node_id": "8044fb1a-76fa-4ae2-bebf-08bba7946d94",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "dependency",
+      "waypoints": []
+    },
+    {
+      "color": "#3498db",
+      "end_anchor": {
+        "edge": 3,
+        "node_id": "040a6bc1-313e-4b22-9d7d-2020240032ae",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "c35f7d2c-ce04-4c8d-b491-c64a55011883",
+      "label": "",
+      "start_anchor": {
+        "edge": 1,
+        "node_id": "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "dependency",
+      "waypoints": []
+    },
+    {
+      "color": "#3498db",
+      "end_anchor": {
+        "edge": 3,
+        "node_id": "7d5129ee-8a46-4763-8022-667c4ab8a2f7",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "5fcc342f-1ce6-4987-abdc-91c1103a6b9e",
+      "label": "",
+      "start_anchor": {
+        "edge": 1,
+        "node_id": "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "dependency",
+      "waypoints": []
+    },
+    {
+      "color": "#FFE74C3C",
+      "end_anchor": {
+        "edge": 3,
+        "node_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "170baad1-65e8-4aa3-ad47-c2b903f02c97",
+      "label": "",
+      "start_anchor": {
+        "edge": 1,
+        "node_id": "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "dependency",
+      "waypoints": []
+    }
+  ],
+  "nodes": [
+    {
+      "children_ids": [
+        "8044fb1a-76fa-4ae2-bebf-08bba7946d94",
+        "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
+        "7d5129ee-8a46-4763-8022-667c4ab8a2f7",
+        "040a6bc1-313e-4b22-9d7d-2020240032ae",
+        "0b73f502-7fba-4b66-8d77-1c4759e74090"
+      ],
+      "collapsed_display": "count_badge",
+      "color": "#FF2ECC71",
+      "full_text": "还有group功能\n\n",
+      "height": 646.5,
+      "id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "a28aadc6-cbba-436b-a060-df290033224b",
+      "pos_x": -548.8006591796875,
+      "pos_y": -217.68695068359375,
+      "priority": 0,
+      "relative_z": 1698,
+      "tags": [],
+      "title": "新节点",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 651.0499877929688
+    },
+    {
+      "children_ids": [
+        "1a85754e-c78a-482d-9000-48f144ee30b7"
+      ],
+      "collapsed_display": "count_badge",
+      "color": "#FF888888",
+      "full_text": "",
+      "height": 60.0,
+      "id": "a28aadc6-cbba-436b-a060-df290033224b",
+      "is_collapsed": false,
+      "kind": "group",
+      "parent_id": "",
+      "pos_x": 0.0,
+      "pos_y": 0.0,
+      "priority": 0,
+      "relative_z": 1,
+      "tags": [],
+      "title": "Document Root",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FF1ABC9C",
+      "full_text": "这是一个WarRoom的项目\n\n",
+      "height": 61.099998474121094,
+      "id": "8044fb1a-76fa-4ae2-bebf-08bba7946d94",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "pos_x": -510.5615234375,
+      "pos_y": -159.1869659423828,
+      "priority": 0,
+      "relative_z": 168,
+      "tags": [],
+      "title": "新节点",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 181.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FFF1C40F",
+      "full_text": "编辑任何内容\n\n",
+      "height": 60.0,
+      "id": "0b73f502-7fba-4b66-8d77-1c4759e74090",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "pos_x": -524.95068359375,
+      "pos_y": 212.86306762695313,
+      "priority": 0,
+      "relative_z": 163,
+      "tags": [],
+      "title": "新节点",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FF1ABC9C",
+      "full_text": "有什么用呢？\n\n",
+      "height": 66.0,
+      "id": "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "pos_x": -412.62457275390625,
+      "pos_y": -41.70869445800781,
+      "priority": 0,
+      "relative_z": 167,
+      "tags": [],
+      "title": "新节点",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FF3498DB",
+      "full_text": "展示多模态内容\n\n",
+      "height": 59.0,
+      "id": "040a6bc1-313e-4b22-9d7d-2020240032ae",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "pos_x": -331.04193115234375,
+      "pos_y": 174.9842529296875,
+      "priority": 0,
+      "relative_z": 169,
+      "tags": [],
+      "title": "新节点",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FFE74C3C",
+      "full_text": "甚至是函数\n\n",
+      "height": 60.0,
+      "id": "7d5129ee-8a46-4763-8022-667c4ab8a2f7",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "pos_x": -139.70144653320313,
+      "pos_y": 220.922119140625,
+      "priority": 0,
+      "relative_z": 170,
+      "tags": [],
+      "title": "新节点",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    }
+  ],
+  "scout_log": [],
+  "timeline": [],
+  "zones": [],
+  "zoom_level": 1.0
+}

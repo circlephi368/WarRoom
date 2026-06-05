@@ -32,7 +32,7 @@ public:
      * @param parent 父图形项
      */
     LinkGraphicsItem(const warroom::Uuid& linkId,
-        const warroom::WarRoomModel& model,
+        warroom::WarRoomModel& model,
         QGraphicsItem* parent = nullptr);
 
     // ---- QGraphicsItem 接口 ----
@@ -45,9 +45,11 @@ public:
     // ---- 自有接口 ----
     const warroom::Uuid& linkId() const { return m_linkId; }
 
-    /// 当模型数据变更后调用，重新解析锚点并刷新几何
+    // 当模型数据变更后调用，重新解析锚点并刷新几何
     void updatePositions();
 
+    // 根据相连节点的 Z 值更新自身的 Z 值
+    void updateZValueFromNodes();
 private:
     // ---- 颜色映射 ----
     static QColor defaultColorForType(warroom::LinkType type);
@@ -81,7 +83,7 @@ private:
 
     // ---- 数据成员 ----
     warroom::Uuid m_linkId;
-    const warroom::WarRoomModel& m_model;
+    warroom::WarRoomModel& m_model;
 
     QPointF m_startPoint;
     QPointF m_endPoint;

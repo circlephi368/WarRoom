@@ -15,6 +15,9 @@ namespace warroom {
         void undo(WarRoomModel& model) override;
         std::string description() const override;
 
+        // 获取要添加的节点 ID（构造时已确定）
+        const Uuid& getNodeId() const { return nodeId_; }
+
     private:
         WarNode node_;
         Uuid nodeId_;

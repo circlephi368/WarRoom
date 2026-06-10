@@ -11,11 +11,13 @@
 // 构造
 // ---------------------------------------------------------------------------
 LinkGraphicsItem::LinkGraphicsItem(const warroom::Uuid& linkId,
-     warroom::WarRoomModel& model,
+    warroom::WarRoomModel& model,
+    WarRoomMainWindow* mainWindow,
     QGraphicsItem* parent)
     : QGraphicsObject(parent)
     , m_linkId(linkId)
     , m_model(model)
+    , m_mainWindow(mainWindow)
 {
     setFlags(ItemIsSelectable);
     setZValue(-1);
@@ -131,7 +133,10 @@ void LinkGraphicsItem::paint(QPainter* painter,
     if (!link->label.empty()) {
         QPointF mid = path.pointAtPercent(0.5);
         painter->setPen(QColor("#333333"));
-        painter->setFont(QFont("Microsoft YaHei", 9));
+        // 使用全局节点字体，但字号固定为 9
+        QFont labelFont = WarRoomMainWindow::getNodeFont();
+        labelFont.setPointSize(9);
+        painter->setFont(labelFont);
         painter->drawText(mid + QPointF(5, -5),
             QString::fromStdString(link->label));
     }
@@ -221,7 +226,7 @@ LinkGraphicsItem::computeControlPoints(QPointF from, int fromEdge,
 {
     QPointF delta = to - from;
     double dist = std::hypot(delta.x(), delta.y());
-    double offset = std::min(dist * 0.4, 120.0);
+    double offset = (std::min)(dist * 0.4, 120.0);
 
     QPointF fromDir = edgeDirection(fromEdge);
     QPointF toDir = edgeDirection(toEdge);
@@ -288,7 +293,7 @@ void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
     };
 
     std::vector<ColorPreset> presets = {
-        {"默认", "#FFaaaaaa"},      // kDefaultLinkColor
+        {"默认", "#FFaaaaaa"},
         {"红色", "#FFE74C3C"},
         {"绿色", "#FF2ECC71"},
         {"蓝色", "#FF3498DB"},
@@ -303,18 +308,17 @@ void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
             warroom::WarLink* link = m_model.getLinkMutable(m_linkId);
             if (link) {
                 link->color = preset.hexColor;
-                update();  // 触发重绘
+                update();
             }
             });
     }
-    // ====================================
 
     QAction* selectedAction = menu.exec(event->screenPos());
 
     if (selectedAction == deleteAction) {
-        // 通知 MainWindow 删除连线
-        if (auto* mainWindow = qobject_cast<WarRoomMainWindow*>(scene()->views().first()->parent())) {
-            mainWindow->deleteLink(m_linkId);
+        // 使用保存的主窗口指针
+        if (m_mainWindow) {
+            m_mainWindow->deleteLink(m_linkId);
         }
     }
 }

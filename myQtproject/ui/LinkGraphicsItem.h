@@ -1,3 +1,4 @@
+// LinkGraphicsItem.h
 #pragma once
 #include <QMenu>
 #include <QGraphicsObject>
@@ -10,7 +11,7 @@
 
 // 前置声明
 namespace warroom {
-    class WarRoomModel;
+	class WarRoomModel;
 }
 class WarRoomMainWindow;
 /**
@@ -21,70 +22,73 @@ class WarRoomMainWindow;
  */
 class LinkGraphicsItem : public QGraphicsObject
 {
-    Q_OBJECT
+	Q_OBJECT
 
 public:
-    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
-    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;
-    /**
-     * @param linkId 对应 WarLink::id
-     * @param model  只读模型引用，用于解析锚点坐标
-     * @param parent 父图形项
-     */
-    LinkGraphicsItem(const warroom::Uuid& linkId,
-        warroom::WarRoomModel& model,
-        QGraphicsItem* parent = nullptr);
+	void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+	void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;
+	/**
+	 * @param linkId 对应 WarLink::id
+	 * @param model  只读模型引用，用于解析锚点坐标
+	 * @param mainWindow 主窗口指针（用于删除连线等操作）
+	 * @param parent 父图形项
+	 */
+	LinkGraphicsItem(const warroom::Uuid& linkId,
+		warroom::WarRoomModel& model,
+		WarRoomMainWindow* mainWindow,
+		QGraphicsItem* parent = nullptr);
 
-    // ---- QGraphicsItem 接口 ----
-    QRectF boundingRect() const override;
-    void paint(QPainter* painter,
-        const QStyleOptionGraphicsItem* option,
-        QWidget* widget) override;
-    QPainterPath shape() const override;
+	// ---- QGraphicsItem 接口 ----
+	QRectF boundingRect() const override;
+	void paint(QPainter* painter,
+		const QStyleOptionGraphicsItem* option,
+		QWidget* widget) override;
+	QPainterPath shape() const override;
 
-    // ---- 自有接口 ----
-    const warroom::Uuid& linkId() const { return m_linkId; }
+	// ---- 自有接口 ----
+	const warroom::Uuid& linkId() const { return m_linkId; }
 
-    // 当模型数据变更后调用，重新解析锚点并刷新几何
-    void updatePositions();
+	// 当模型数据变更后调用，重新解析锚点并刷新几何
+	void updatePositions();
 
-    // 根据相连节点的 Z 值更新自身的 Z 值
-    void updateZValueFromNodes();
+	// 根据相连节点的 Z 值更新自身的 Z 值
+	void updateZValueFromNodes();
 private:
-    // ---- 颜色映射 ----
-    static QColor defaultColorForType(warroom::LinkType type);
-    static QColor highlightColor() { return QColor(100, 180, 255); }
-    
-    // ---- 路径构建 ----
-    QVector<QPointF> m_wayPoints;
-    void buildPath(QPainterPath& path) const;
+	// ---- 颜色映射 ----
+	static QColor defaultColorForType(warroom::LinkType type);
+	static QColor highlightColor() { return QColor(100, 180, 255); }
+	
+	// ---- 路径构建 ----
+	QVector<QPointF> m_wayPoints;
+	void buildPath(QPainterPath& path) const;
 
-    // 计算出入连接线方向
-    // 根据 edge 返回单位方向向量（从节点中心指向边缘外）
-    // edge: 0=右(+x), 1=下(+y), 2=左(-x), 3=上(-y), 其他返回0右
-    static QPointF edgeDirection(int edge);
-    
-    QPainterPath m_hitArea;  // 用于命中检测的路径轮廓
-    void updateHitArea();
-    // ---- 贝塞尔控制点计算（便于独立替换） ----
-    struct BezierControl {
-        QPointF ctrl1;
-        QPointF ctrl2;
-    };
-    static BezierControl computeControlPoints(
-        QPointF from, int fromEdge,
-        QPointF to, int toEdge);
+	// 计算出入连接线方向
+	// 根据 edge 返回单位方向向量（从节点中心指向边缘外）
+	// edge: 0=右(+x), 1=下(+y), 2=左(-x), 3=上(-y), 其他返回0右
+	static QPointF edgeDirection(int edge);
+	
+	QPainterPath m_hitArea;  // 用于命中检测的路径轮廓
+	void updateHitArea();
+	// ---- 贝塞尔控制点计算（便于独立替换） ----
+	struct BezierControl {
+		QPointF ctrl1;
+		QPointF ctrl2;
+	};
+	static BezierControl computeControlPoints(
+		QPointF from, int fromEdge,
+		QPointF to, int toEdge);
 
-    // ---- 箭头 ----
-    static void arrowHeadPoints(const QPointF& tip,
-        const QPointF& fromDir,
-        QPointF& p1,
-        QPointF& p2);
+	// ---- 箭头 ----
+	static void arrowHeadPoints(const QPointF& tip,
+		const QPointF& fromDir,
+		QPointF& p1,
+		QPointF& p2);
 
-    // ---- 数据成员 ----
-    warroom::Uuid m_linkId;
-    warroom::WarRoomModel& m_model;
+	// ---- 数据成员 ----
+	warroom::Uuid m_linkId;
+	warroom::WarRoomModel& m_model;
+	WarRoomMainWindow* m_mainWindow = nullptr;
 
-    QPointF m_startPoint;
-    QPointF m_endPoint;
+	QPointF m_startPoint;
+	QPointF m_endPoint;
 };

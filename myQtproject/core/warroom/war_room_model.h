@@ -28,7 +28,7 @@ namespace warroom {
 		const WarNode* getNode(Uuid id) const;
 		WarNode* getNodeMutable(Uuid id);
 		Uuid addNode(WarNode node, Uuid parent_id, int index = -1);
-		bool removeNode(Uuid id);  // 级联删除子树和关联连线
+		bool removeNode(Uuid id, bool reparentChildren = true);  // 级联删除子树和关联连线
 		void setNodeParent(Uuid node_id, Uuid new_parent_id, int index = -1);
 		const std::unordered_map<Uuid, WarNode>& getAllNodes() const { return nodes_; }
 		void setNodeColor(Uuid node_id, Color color);

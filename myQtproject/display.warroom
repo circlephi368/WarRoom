@@ -1,7 +1,7 @@
-{
+﻿{
   "camera_position": {
-    "x": -102.0,
-    "y": 19.0
+    "x": -210.45001220703125,
+    "y": -20.700000762939453
   },
   "document_root_id": "a28aadc6-cbba-436b-a060-df290033224b",
   "links": [
@@ -109,6 +109,27 @@
       },
       "type": "dependency",
       "waypoints": []
+    },
+    {
+      "color": "#3498db",
+      "end_anchor": {
+        "edge": 3,
+        "node_id": "b87c52b4-964d-4539-969d-e951340ea459",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "f6cbd8aa-ca74-41fb-8e7d-e499fd7fc380",
+      "label": "",
+      "start_anchor": {
+        "edge": 1,
+        "node_id": "040a6bc1-313e-4b22-9d7d-2020240032ae",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "dependency",
+      "waypoints": []
     }
   ],
   "nodes": [
@@ -118,7 +139,8 @@
         "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
         "7d5129ee-8a46-4763-8022-667c4ab8a2f7",
         "040a6bc1-313e-4b22-9d7d-2020240032ae",
-        "0b73f502-7fba-4b66-8d77-1c4759e74090"
+        "0b73f502-7fba-4b66-8d77-1c4759e74090",
+        "b87c52b4-964d-4539-969d-e951340ea459"
       ],
       "collapsed_display": "count_badge",
       "color": "#FF2ECC71",
@@ -128,10 +150,10 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "a28aadc6-cbba-436b-a060-df290033224b",
-      "pos_x": -548.8006591796875,
-      "pos_y": -217.68695068359375,
+      "pos_x": -568.4506225585938,
+      "pos_y": -356.8369445800781,
       "priority": 0,
-      "relative_z": 1698,
+      "relative_z": 2389,
       "tags": [],
       "title": "新节点",
       "tool_category": "",
@@ -170,8 +192,8 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -510.5615234375,
-      "pos_y": -159.1869659423828,
+      "pos_x": -530.2114868164063,
+      "pos_y": -298.3369445800781,
       "priority": 0,
       "relative_z": 168,
       "tags": [],
@@ -190,8 +212,8 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -524.95068359375,
-      "pos_y": 212.86306762695313,
+      "pos_x": -544.6006469726563,
+      "pos_y": 73.71307373046875,
       "priority": 0,
       "relative_z": 163,
       "tags": [],
@@ -210,8 +232,8 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -412.62457275390625,
-      "pos_y": -41.70869445800781,
+      "pos_x": -432.2745361328125,
+      "pos_y": -180.8586883544922,
       "priority": 0,
       "relative_z": 167,
       "tags": [],
@@ -230,10 +252,10 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -331.04193115234375,
-      "pos_y": 174.9842529296875,
+      "pos_x": -350.69189453125,
+      "pos_y": 35.834259033203125,
       "priority": 0,
-      "relative_z": 169,
+      "relative_z": 173,
       "tags": [],
       "title": "新节点",
       "tool_category": "",
@@ -250,8 +272,8 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -139.70144653320313,
-      "pos_y": 220.922119140625,
+      "pos_x": -159.35140991210938,
+      "pos_y": 81.77212524414063,
       "priority": 0,
       "relative_z": 170,
       "tags": [],
@@ -259,10 +281,34 @@
       "tool_category": "",
       "tool_summary": "",
       "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FF888888",
+      "full_text": "",
+      "height": 132.0,
+      "id": "b87c52b4-964d-4539-969d-e951340ea459",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "pos_x": -385.89996337890625,
+      "pos_y": 138.0,
+      "primary_mod_data": {
+        "path": "2026-04-15_09.59.28.png"
+      },
+      "primary_mod_type": "builtin.image",
+      "priority": 0,
+      "relative_z": 174,
+      "tags": [],
+      "title": "图片",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 231.0
     }
   ],
   "scout_log": [],
   "timeline": [],
   "zones": [],
-  "zoom_level": 1.0
+  "zoom_level": 0.8695651888847351
 }

@@ -1,0 +1,232 @@
+﻿{
+  "camera_position": {
+    "x": -1.0,
+    "y": -1.0
+  },
+  "document_root_id": "ba5c5e88-44f2-4248-a7d3-6528787b87fe",
+  "links": [
+    {
+      "color": "#f39c12",
+      "end_anchor": {
+        "edge": 0,
+        "node_id": "21e6a9ac-b4e6-4e81-93b7-88f538209ce4",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "88414871-d132-45ef-a050-96d2ecac4ffb",
+      "label": "依赖",
+      "start_anchor": {
+        "edge": 0,
+        "node_id": "4ac12150-c90f-45d0-9aed-6dcc527653dd",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "dependency",
+      "waypoints": []
+    },
+    {
+      "color": "#3498db",
+      "end_anchor": {
+        "edge": 2,
+        "node_id": "f7579f22-1103-43c0-aab2-44f83f59a9f3",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "f8295bac-1c87-44f9-bb38-8de4b4044ae5",
+      "label": "转化为",
+      "start_anchor": {
+        "edge": 1,
+        "node_id": "4ac12150-c90f-45d0-9aed-6dcc527653dd",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "transformation",
+      "waypoints": []
+    },
+    {
+      "color": "#9b59b6",
+      "end_anchor": {
+        "edge": 3,
+        "node_id": "4024ef66-3d72-4f35-99a4-2eeea90f2a7e",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "b0e35e54-dd18-4480-9100-717624c8e41b",
+      "label": "启发",
+      "start_anchor": {
+        "edge": 2,
+        "node_id": "4ac12150-c90f-45d0-9aed-6dcc527653dd",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "inspiration",
+      "waypoints": []
+    }
+  ],
+  "nodes": [
+    {
+      "children_ids": [
+        "9a989a31-2c18-41f9-af64-fbdaa342e1ad",
+        "4024ef66-3d72-4f35-99a4-2eeea90f2a7e",
+        "3f8b1623-c5a1-45e0-bbcf-7bb3530d8931"
+      ],
+      "collapsed_display": "count_badge",
+      "color": "#FF888888",
+      "full_text": "",
+      "height": 60.0,
+      "id": "ba5c5e88-44f2-4248-a7d3-6528787b87fe",
+      "is_collapsed": false,
+      "kind": "group",
+      "parent_id": "",
+      "pos_x": 0.0,
+      "pos_y": 0.0,
+      "priority": 0,
+      "relative_z": 1,
+      "tags": [],
+      "title": "Document Root",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [
+        "4ac12150-c90f-45d0-9aed-6dcc527653dd",
+        "21e6a9ac-b4e6-4e81-93b7-88f538209ce4",
+        "f7579f22-1103-43c0-aab2-44f83f59a9f3"
+      ],
+      "collapsed_display": "count_badge",
+      "color": "#80e74c3c",
+      "full_text": "",
+      "height": 60.0,
+      "id": "9a989a31-2c18-41f9-af64-fbdaa342e1ad",
+      "is_collapsed": false,
+      "kind": "group",
+      "parent_id": "ba5c5e88-44f2-4248-a7d3-6528787b87fe",
+      "pos_x": 0.0,
+      "pos_y": -100.0,
+      "priority": 0,
+      "relative_z": 1,
+      "tags": [],
+      "title": "主攻方向",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#80e74c3c",
+      "full_text": "test full_text",
+      "height": 60.0,
+      "id": "4ac12150-c90f-45d0-9aed-6dcc527653dd",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "9a989a31-2c18-41f9-af64-fbdaa342e1ad",
+      "pos_x": -200.0,
+      "pos_y": 50.0,
+      "priority": 0,
+      "relative_z": 1,
+      "tags": [
+        "进行中"
+      ],
+      "title": "数据库查询优化",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FF888888",
+      "full_text": "",
+      "height": 60.0,
+      "id": "21e6a9ac-b4e6-4e81-93b7-88f538209ce4",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "9a989a31-2c18-41f9-af64-fbdaa342e1ad",
+      "pos_x": 50.0,
+      "pos_y": 50.0,
+      "priority": 0,
+      "relative_z": 1,
+      "tags": [
+        "未探索"
+      ],
+      "title": "缓存策略调整",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FF888888",
+      "full_text": "",
+      "height": 60.0,
+      "id": "3f8b1623-c5a1-45e0-bbcf-7bb3530d8931",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "ba5c5e88-44f2-4248-a7d3-6528787b87fe",
+      "pos_x": 600.0,
+      "pos_y": -200.0,
+      "priority": 0,
+      "relative_z": 1,
+      "tags": [],
+      "title": "网络延迟排查2",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FF888888",
+      "full_text": "",
+      "height": 60.0,
+      "id": "f7579f22-1103-43c0-aab2-44f83f59a9f3",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "9a989a31-2c18-41f9-af64-fbdaa342e1ad",
+      "pos_x": 300.0,
+      "pos_y": 50.0,
+      "priority": 0,
+      "relative_z": 1,
+      "tags": [
+        "失败"
+      ],
+      "title": "索引重建方案",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 300.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FF888888",
+      "full_text": "",
+      "height": 60.0,
+      "id": "4024ef66-3d72-4f35-99a4-2eeea90f2a7e",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "ba5c5e88-44f2-4248-a7d3-6528787b87fe",
+      "pos_x": 500.0,
+      "pos_y": -100.0,
+      "priority": 0,
+      "relative_z": 1,
+      "tags": [],
+      "title": "网络延迟排查",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    }
+  ],
+  "scout_log": [],
+  "timeline": [],
+  "zones": [],
+  "zoom_level": 1.0
+}

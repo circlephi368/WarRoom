@@ -1,6 +1,7 @@
 // war_node.h
 #pragma once
 #include "warroom_types.h"
+#include <nlohmann/json.hpp>
 
 namespace warroom {
 
@@ -58,6 +59,18 @@ namespace warroom {
         // ---- 工具节点专属 ----
         std::string tool_category;
         std::string tool_summary;
+
+        // ---- 节点模组（多模态扩展） ----
+        // 主模组类型 ID（空字符串表示无主模组，节点行为同原版纯文本节点）。
+        // 一个节点最多绑定一个主模组，主模组负责节点的主要外观/交互。
+        std::string primary_mod_type;
+        // 主模组的可序列化数据（由对应 NodeMod::serialize / deserialize 维护）
+        nlohmann::json primary_mod_data;
+
+        // 辅助模组：可叠加多个，仅做附加渲染/交互（如徽章、状态指示等）
+        std::vector<std::string> auxiliary_mod_types;
+        // 每个辅助模组对应的可序列化数据，键为模组 id
+        std::unordered_map<std::string, nlohmann::json> auxiliary_mod_data;
 
         // 便捷方法
         void setRelativeZ(int z) { relative_z = z; }

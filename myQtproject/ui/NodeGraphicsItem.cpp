@@ -1,5 +1,7 @@
 #include "NodeGraphicsItem.h"
 #include "CustomTextEdit.h"
+#include "WarRoomMainWindow.h"
+#include "mod/ModManager.h"
 #include <qcursor.h>
 
 // ==================== 构造函数 ====================
@@ -10,14 +12,40 @@ NodeGraphicsItem::NodeGraphicsItem(const std::string& nodeId, warroom::WarRoomMo
     setAcceptHoverEvents(true);
     createAnchors();
 
+    // 使用全局配置的字体（从 settings.ini 读取）
+    m_editorFont = WarRoomMainWindow::getNodeFont();
+
     // 初始化预览文档
     initializePreviewDocument();
 
     // 从模型获取初始位置
-    const warroom::WarNode* node = getNode();
+    warroom::WarNode* node = getNodeMutable();
     if (node) {
         setPos(node->pos_x, node->pos_y);
+
+        // 初始化节点上绑定的模组（若有）
+        // 注意：相同 nodeId 重复创建图形项时（例如撤销/重做），会先清掉旧的
+        warroom::ModManager::instance().cleanupNodeModData(node->id);
+        warroom::ModManager::instance().initNodeModData(node, this);
     }
+}
+
+NodeGraphicsItem::~NodeGraphicsItem()
+{
+    // 标记正在删除，防止任何后续操作
+    m_pendingRemoval = true;
+
+    // 注意：不需要手动删除 m_anchors，因为 Qt 父子关系会自动处理
+    // 注意：不需要手动删除 m_editorProxy 和 m_textEdit，因为 QGraphicsProxyWidget 设置了父项
+
+    // 如果编辑器还存在，只移除事件过滤器，不主动删除（Qt 会处理）
+    if (m_textEdit) {
+        m_textEdit->removeEventFilter(this);
+    }
+
+    // 将所有指针置空（仅为了调试时清晰，非必需）
+    m_editorProxy = nullptr;
+    m_textEdit = nullptr;
 }
 
 // ==================== 辅助方法 ====================
@@ -34,36 +62,43 @@ warroom::WarNode* NodeGraphicsItem::getNodeMutable()
 void NodeGraphicsItem::createInlineEditor() {
     if (m_editorProxy) return;
 
-    /*m_textEdit = new QTextEdit();
-    m_textEdit->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    m_textEdit->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_textEdit->setFrameShape(QFrame::NoFrame);
-    m_textEdit->document()->setDefaultFont(m_editorFont);
-    m_textEdit->document()->setTextWidth(getWidth() - m_textPadding * 2);*/
-    auto* customEdit = new CustomTextEdit();  // 使用自定义编辑器
-    m_textEdit = customEdit;  // 赋值给 QTextEdit*（多态）
+    auto* customEdit = new CustomTextEdit();
+    m_textEdit = customEdit;
+
     // 配置
     customEdit->setTransparentMode(true);
     customEdit->setCustomScrollbar(true);
 
+    //// 关键：设置文档边距为0，与预览一致
+    //customEdit->document()->setDocumentMargin(0);
+
+    // 设置字体
+    customEdit->document()->setDefaultFont(m_editorFont);
+
+    // 设置文本宽度（与预览一致）
+    customEdit->document()->setTextWidth(getWidth() - m_textPadding * 2);
+
+    // 设置文本选项（与预览一致）
+    QTextOption option = customEdit->document()->defaultTextOption();
+    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    option.setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    option.setTabStopDistance(40);
+    customEdit->document()->setDefaultTextOption(option);
+
     // 加载现有内容
     const warroom::WarNode* node = getNode();
     if (node) {
-        m_textEdit->setMarkdown(QString::fromStdString(node->full_text));
+        customEdit->setMarkdown(QString::fromStdString(node->full_text));
     }
 
     m_editorProxy = new QGraphicsProxyWidget(this);
-    m_editorProxy->setWidget(m_textEdit);
+    m_editorProxy->setWidget(customEdit);
     m_editorProxy->setPos(m_textPadding, m_textPadding);
     m_editorProxy->setZValue(100);
-
-    // 重要：设置代理大小
     m_editorProxy->resize(getWidth() - m_textPadding * 2, getHeight() - m_textPadding * 2);
 
-    m_textEdit->setFocus();
-
-    // 使用事件过滤器监听焦点丢失
-    m_textEdit->installEventFilter(this);
+    customEdit->setFocus();
+    customEdit->installEventFilter(this);
 }
 
 void NodeGraphicsItem::saveContentToModel() {
@@ -79,22 +114,84 @@ void NodeGraphicsItem::saveContentToModel() {
     }
 }
 
-void NodeGraphicsItem::saveAndExitEditMode() {
+void NodeGraphicsItem::saveAndExitEditMode()
+{
     if (m_editMode != EditMode::Editing) return;
 
+    // 先保存内容到模型
     saveContentToModel();
+
+    // 在销毁编辑器之前，先移除事件过滤器（避免析构时还在接收事件）
+    if (m_textEdit) {
+        m_textEdit->removeEventFilter(this);
+    }
+
+    // 销毁编辑器（QGraphicsProxyWidget 会自动删除其 widget）
     destroyEditor();
+
     m_editMode = EditMode::Preview;
-    refreshPreviewDocument();   // 重新加载模型内容到预览文档
-    update();                   // 触发重绘
+    refreshPreviewDocument();
+    update();
+}
+
+void NodeGraphicsItem::prepareForRemoval()
+{
+    if (m_pendingRemoval) return;
+    m_pendingRemoval = true;
+
+    // 1. 如果正在编辑，先保存并退出（这会触发编辑器销毁）
+    if (m_editMode == EditMode::Editing) {
+        saveAndExitEditMode();  // 这里会调用 destroyEditor
+    }
+
+    // 2. 如果编辑器仍然存在（异常情况），强制销毁
+    if (m_editorProxy) {
+        destroyEditor();
+    }
+
+    // 3. 隐藏并禁用所有锚点
+    for (auto* anchor : m_anchors) {
+        if (anchor) {
+            anchor->hide();
+            anchor->setAcceptedMouseButtons(Qt::NoButton);
+        }
+    }
+
+    // 4. 清除选中状态
+    setSelected(false);
+
+    // 5. 阻止进一步的事件处理
+    setAcceptHoverEvents(false);
+    setFlag(ItemIsSelectable, false);
+    setFlag(ItemIsMovable, false);
+
+    // 6. 断开所有信号连接，避免外部继续引用
+    disconnect();  // 断开所有 Qt 信号槽连接
 }
 
 void NodeGraphicsItem::refreshPreviewDocument() {
     const warroom::WarNode* node = getNode();
     if (!node) return;
 
+    // 确保文档设置与编辑器一致
+    //m_previewDocument.setDocumentMargin(0);
     m_previewDocument.setDefaultFont(m_editorFont);
     m_previewDocument.setTextWidth(getWidth() - m_textPadding * 2);
+
+    // 复制编辑器的文本选项（如果编辑器存在）
+    if (m_textEdit) {
+        QTextOption option = m_textEdit->document()->defaultTextOption();
+        m_previewDocument.setDefaultTextOption(option);
+    }
+    else {
+        // 使用默认设置
+        QTextOption option = m_previewDocument.defaultTextOption();
+        option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        option.setAlignment(Qt::AlignLeft | Qt::AlignTop);
+        option.setTabStopDistance(40);
+        m_previewDocument.setDefaultTextOption(option);
+    }
+
     m_previewDocument.setMarkdown(QString::fromStdString(node->full_text));
 }
 
@@ -108,8 +205,21 @@ void NodeGraphicsItem::updateEditorGeometry() {
 }
 
 void NodeGraphicsItem::initializePreviewDocument() {
+    // 设置与编辑器完全一致的文档边距
+    //m_previewDocument.setDocumentMargin(0);
     m_previewDocument.setDefaultFont(m_editorFont);
     m_previewDocument.setTextWidth(getWidth() - m_textPadding * 2);
+
+    // 设置文档的默认样式，与 QTextEdit 默认保持一致
+    // QTextEdit 默认使用 QTextDocument 的默认样式
+    // 但为了确保一致性，我们显式设置一些参数
+    QTextOption option = m_previewDocument.defaultTextOption();
+    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    option.setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    // 设置行距为默认值（与 QTextEdit 一致）
+    option.setTabStopDistance(40);  // QTextEdit 默认制表符宽度
+    m_previewDocument.setDefaultTextOption(option);
+
     refreshPreviewDocument();  // 加载内容
 }
 
@@ -145,30 +255,49 @@ void NodeGraphicsItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
 
     QRectF rect = boundingRect().adjusted(2, 2, -2, -2);
 
-    // 绘制背景
-    QColor color(QString::fromStdString(node->color));
-    painter->setBrush(color);
-    painter->setPen(QPen(color.darker(150), 2));
-    painter->drawRoundedRect(rect, 8, 8);
+    // ---- 主模组绘制（若主模组返回 true，则跳过默认背景/文本绘制） ----
+    bool primaryHandled = false;
+    if (!node->primary_mod_type.empty()) {
+        auto& mm = warroom::ModManager::instance();
+        if (warroom::NodeMod* mod = mm.getMod(node->primary_mod_type)) {
+            void* data = mm.getPrimaryPrivate(node);
+            warroom::ModRenderContext ctx{
+                painter, rect, node, 1.0f,
+                isSelected(), false
+            };
+            primaryHandled = mod->onPaint(ctx, data);
+        }
+    }
 
-    //// 绘制标题（始终显示）
-    //painter->setPen(Qt::white);
-    //QFont font("Microsoft YaHei", 10, QFont::Bold);
-    //painter->setFont(font);
+    if (!primaryHandled) {
+        // ---- 默认绘制（原版纯文本节点行为） ----
+        QColor color(QString::fromStdString(node->color));
+        painter->setBrush(color);
+        painter->setPen(QPen(color.darker(150), 2));
+        painter->drawRoundedRect(rect, 8, 8);
 
-    //QString title = QString::fromStdString(node->title);
-    //if (title.isEmpty()) title = "未命名";
+        if (m_editMode == EditMode::Preview) {
+            painter->save();
+            painter->translate(m_textPadding, m_textPadding);
+            QRectF clipRect(0, 0, getWidth() - m_textPadding * 2, getHeight() - m_textPadding * 2);
+            m_previewDocument.drawContents(painter, clipRect);
+            painter->restore();
+        }
+    }
 
-    //QRectF titleRect = rect.adjusted(10, 5, -10, -25);
-    //painter->drawText(titleRect, Qt::AlignLeft | Qt::AlignTop, title);
-
-    // 预览模式下绘制内容
-    if (m_editMode == EditMode::Preview) {
-        painter->save();
-        painter->translate(m_textPadding, m_textPadding);  // 偏移标题高度
-        QRectF clipRect(0, 0, getWidth() - m_textPadding * 2, getHeight() - m_textPadding * 2 - 20);
-        m_previewDocument.drawContents(painter, clipRect);
-        painter->restore();
+    // ---- 辅助模组叠绘（不影响主模组返回值） ----
+    if (!node->auxiliary_mod_types.empty()) {
+        auto& mm = warroom::ModManager::instance();
+        for (const auto& modType : node->auxiliary_mod_types) {
+            if (warroom::NodeMod* mod = mm.getMod(modType)) {
+                void* data = mm.getNodePrivate(node, modType);
+                warroom::ModRenderContext ctx{
+                    painter, rect, node, 1.0f,
+                    isSelected(), false
+                };
+                mod->onPaint(ctx, data);
+            }
+        }
     }
 
     // 选中高亮
@@ -228,6 +357,18 @@ void NodeGraphicsItem::updateAnchorsPosition()
 }
 
 // ==================== 刷新显示 ====================
+void NodeGraphicsItem::refreshFont(const QFont& font)
+{
+    m_editorFont = font;
+    // 同步预览文档字体
+    m_previewDocument.setDefaultFont(font);
+    // 如果编辑器已打开，同步编辑器字体
+    if (m_textEdit) {
+        m_textEdit->document()->setDefaultFont(font);
+    }
+    update(); // 重绘
+}
+
 void NodeGraphicsItem::refresh()
 {
     const warroom::WarNode* node = getNode();
@@ -285,17 +426,34 @@ void NodeGraphicsItem::setEditMode(EditMode mode) {
     }
 }
 
-void NodeGraphicsItem::destroyEditor() {
-    if (m_editorProxy) {
-        delete m_editorProxy;  // 会自动删除 m_textEdit
-        m_editorProxy = nullptr;
-        m_textEdit = nullptr;
+void NodeGraphicsItem::destroyEditor()
+{
+    if (!m_editorProxy) return;
+
+    // 先通知编辑器即将被销毁，阻止后续事件
+    if (m_textEdit) {
+        auto* customEdit = dynamic_cast<CustomTextEdit*>(m_textEdit);
+        if (customEdit) {
+            customEdit->prepareForDestruction();
+        }
+        // 移除事件过滤器（再次确保）
+        m_textEdit->removeEventFilter(this);
     }
+
+    // 删除 proxy（会自动删除 m_textEdit）
+    delete m_editorProxy;
+    m_editorProxy = nullptr;
+    m_textEdit = nullptr;
 }
 
 // ==================== 悬停事件 ====================
 void NodeGraphicsItem::hoverEnterEvent(QGraphicsSceneHoverEvent* event)
 {
+    if (m_pendingRemoval) {
+        event->ignore();
+        return;
+    }
+
     for (auto* anchor : m_anchors) {
         if (anchor) anchor->show();
     }
@@ -304,16 +462,59 @@ void NodeGraphicsItem::hoverEnterEvent(QGraphicsSceneHoverEvent* event)
 
 void NodeGraphicsItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
 {
-	// 隐藏所有锚点
+    if (m_pendingRemoval) {
+        event->ignore();
+        return;
+    }
+
     for (auto* anchor : m_anchors) {
         if (anchor) anchor->hide();
     }
     QGraphicsObject::hoverLeaveEvent(event);
 }
 
-void NodeGraphicsItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
+void NodeGraphicsItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event)
+{
+    if (m_pendingRemoval) {
+        event->ignore();
+        return;
+    }
+
+    // 优先让模组处理
+    const warroom::WarNode* node = getNode();
+    if (node) {
+        auto& mm = warroom::ModManager::instance();
+        // 主模组
+        if (!node->primary_mod_type.empty()) {
+            if (warroom::NodeMod* mod = mm.getMod(node->primary_mod_type)) {
+                void* data = mm.getPrimaryPrivate(node);
+                auto r = mod->onMouseDoubleClick(event, node, data);
+                if (r != warroom::ModInteractionResult::Ignored) {
+                    if (r == warroom::ModInteractionResult::Consumed) {
+                        event->accept();
+                        return;
+                    }
+                    // Handled：不阻止默认行为后续逻辑——但这里已经够用，accept 退出
+                    event->accept();
+                    return;
+                }
+            }
+        }
+        // 辅助模组
+        for (const auto& modType : node->auxiliary_mod_types) {
+            if (warroom::NodeMod* mod = mm.getMod(modType)) {
+                void* data = mm.getNodePrivate(node, modType);
+                auto r = mod->onMouseDoubleClick(event, node, data);
+                if (r == warroom::ModInteractionResult::Consumed) {
+                    event->accept();
+                    return;
+                }
+            }
+        }
+    }
+
     if (m_editMode == EditMode::Preview) {
-        emit editRequested(m_nodeId);  // 通知 MainWindow 先清理其他编辑器
+        emit editRequested(m_nodeId);
         m_editMode = EditMode::Editing;
         createInlineEditor();
         event->accept();
@@ -323,9 +524,29 @@ void NodeGraphicsItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 bool NodeGraphicsItem::eventFilter(QObject* watched, QEvent* event) {
+    // 如果节点已被标记删除，忽略所有事件
+    if (m_pendingRemoval) {
+        return false;
+    }
+
     if (watched == m_textEdit && event->type() == QEvent::FocusOut) {
-        // 使用延迟调用，避免在事件处理中直接删除对象
-        QMetaObject::invokeMethod(this, "saveAndExitEditMode", Qt::QueuedConnection);
+        // 检查 m_textEdit 和当前对象是否仍然有效
+        if (!m_textEdit || m_pendingRemoval) {
+            return false;
+        }
+
+        // 使用 QMetaObject::invokeMethod 时，确保目标对象仍然有效
+        // 注意：这里使用了 QueuedConnection，但需要确保 this 在调用时仍然有效
+        // 更好的做法：使用 QPointer 捕获 this
+
+        // 改用 QPointer 来安全调用
+        QPointer<NodeGraphicsItem> self(this);
+        QMetaObject::invokeMethod(this, [self]() {
+            if (self && !self->m_pendingRemoval) {
+                self->saveAndExitEditMode();
+            }
+            }, Qt::QueuedConnection);
+
         return false;
     }
     return QGraphicsObject::eventFilter(watched, event);

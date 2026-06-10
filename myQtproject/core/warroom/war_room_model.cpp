@@ -1,5 +1,6 @@
 // war_room_model.cpp
 #include "war_room_model.h"
+#include "mod/ModManager.h"
 #include <algorithm>
 #include <cassert>
 
@@ -85,34 +86,81 @@ namespace warroom {
 		return node_id;
 	}
 
-	bool WarRoomModel::removeNode(Uuid id) {
+	bool WarRoomModel::removeNode(Uuid id, bool reparentChildren) {
 		if (id == document_root_id_) return false;
 
 		auto it = nodes_.find(id);
 		if (it == nodes_.end()) return false;
 
-		// 级联收集整个子树
-		std::unordered_set<Uuid> to_remove;
-		collectSubtreeIds(id, to_remove);
+		WarNode& nodeToDelete = it->second;
+		Uuid parent_id = nodeToDelete.parent_id;
+		std::vector<Uuid> childrenToReparent = nodeToDelete.children_ids;
 
-		// 删除关联连线
-		for (Uuid node_id : to_remove) {
-			auto range = links_by_node_.equal_range(node_id);
-			for (auto lit = range.first; lit != range.second; ++lit) {
-				links_.erase(lit->second);
+		// 从父节点的 children_ids 中移除当前节点
+		auto parentIt = nodes_.find(parent_id);
+		if (parentIt != nodes_.end()) {
+			auto& siblings = parentIt->second.children_ids;
+			siblings.erase(std::remove(siblings.begin(), siblings.end(), id), siblings.end());
+		}
+
+		// 如果需要重新挂载子节点
+		if (reparentChildren && !childrenToReparent.empty()) {
+			auto* parentNode = (parentIt != nodes_.end()) ? &parentIt->second : nullptr;
+			if (parentNode) {
+				// 找到当前节点在父节点中的位置
+				int insertIndex = -1;
+				for (size_t i = 0; i < parentNode->children_ids.size(); ++i) {
+					if (parentNode->children_ids[i] == id) {
+						insertIndex = static_cast<int>(i);
+						break;
+					}
+				}
+
+				// 在相同位置插入子节点
+				for (const auto& childId : childrenToReparent) {
+					auto childIt = nodes_.find(childId);
+					if (childIt != nodes_.end()) {
+						childIt->second.parent_id = parent_id;
+
+						// 重新计算相对坐标
+						if (parent_id != document_root_id_) {
+							childIt->second.rel_x = childIt->second.pos_x - parentNode->pos_x;
+							childIt->second.rel_y = childIt->second.pos_y - parentNode->pos_y;
+						}
+						else {
+							childIt->second.rel_x = childIt->second.pos_x;
+							childIt->second.rel_y = childIt->second.pos_y;
+						}
+
+						if (insertIndex >= 0) {
+							parentNode->children_ids.insert(
+								parentNode->children_ids.begin() + insertIndex, childId);
+							insertIndex++;
+						}
+						else {
+							parentNode->children_ids.push_back(childId);
+						}
+					}
+				}
 			}
-			links_by_node_.erase(node_id);
 		}
 
-		// 从父节点的 children_ids 中移除
-		Uuid parent_id = it->second.parent_id;
-		auto& siblings = nodes_[parent_id].children_ids;
-		siblings.erase(std::remove(siblings.begin(), siblings.end(), id), siblings.end());
-
-		// 删除所有子树节点
-		for (Uuid node_id : to_remove) {
-			nodes_.erase(node_id);
+		// 删除与当前节点关联的连线
+		auto range = links_by_node_.equal_range(id);
+		std::vector<Uuid> links_to_remove;
+		for (auto lit = range.first; lit != range.second; ++lit) {
+			links_to_remove.push_back(lit->second);
 		}
+		for (const auto& link_id : links_to_remove) {
+			links_.erase(link_id);
+		}
+		links_by_node_.erase(id);
+
+		// 清理节点的模组运行时数据（若有）
+		ModManager::instance().cleanupNodeModData(id);
+
+		// 删除节点
+		nodes_.erase(it);
 
 		return true;
 	}
@@ -352,9 +400,10 @@ namespace warroom {
 	}
 
 	void WarRoomModel::collectSubtreeIds(Uuid node_id, std::unordered_set<Uuid>& out_ids) const {
-		out_ids.insert(node_id);
 		const WarNode* node = getNode(node_id);
-		if (!node) return;
+		if (!node) return;  // 节点不存在，直接返回，不要插入
+
+		out_ids.insert(node_id);
 		for (const Uuid& child_id : node->children_ids) {
 			collectSubtreeIds(child_id, out_ids);
 		}

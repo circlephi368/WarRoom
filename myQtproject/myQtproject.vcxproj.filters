@@ -85,6 +85,9 @@
     <ClCompile Include="ui\CustomTextEdit.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="test_main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\command\add_link_command.h">
@@ -144,6 +147,27 @@
     <ClInclude Include="core\command\resize_node_command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ui\WindowHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\ConnectionAnchor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod\NodeMod.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod\ModManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod\builtin\BuiltinMods.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod\builtin\ImageMod.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod\builtin\VideoMod.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="ui\warroomview.h">
@@ -164,10 +188,13 @@
     <QtMoc Include="ui\LinkCreationManager.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="ui\ConnectionAnchor.h">
+    <QtMoc Include="ui\CustomTextEdit.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="ui\CustomTextEdit.h">
+    <QtMoc Include="ui\CustomSidebar.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ui\CustomTitleBar.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

@@ -38,12 +38,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;network;widgets;multimediawidgets</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;network;widgets;multimediawidgets</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -69,6 +69,8 @@
     <ClCompile>
       <DisableSpecificWarnings>4999</DisableSpecificWarnings>
       <AdditionalOptions>/w34996 %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>Default</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -76,6 +78,8 @@
     <ClCompile>
       <DisableSpecificWarnings>4999</DisableSpecificWarnings>
       <AdditionalOptions>/w34996 %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>Default</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -117,6 +121,7 @@
     <ClCompile Include="core\command\undo_manager.cpp" />
     <ClCompile Include="core\serialization\war_room_model_serialization.cpp" />
     <ClCompile Include="core\warroom\war_room_model.cpp" />
+    <ClCompile Include="test_main.cpp" />
     <ClCompile Include="ui\ConnectionAnchor.cpp" />
     <ClCompile Include="ui\CustomTextEdit.cpp" />
     <ClCompile Include="ui\LinkCreationManager.cpp" />
@@ -146,12 +151,20 @@
     <ClInclude Include="core\warroom\war_node.h" />
     <ClInclude Include="core\warroom\war_room_model.h" />
     <ClInclude Include="core\warroom\war_zone.h" />
+    <ClInclude Include="mod\builtin\BuiltinMods.h" />
+    <ClInclude Include="mod\builtin\ImageMod.h" />
+    <ClInclude Include="mod\builtin\VideoMod.h" />
+    <ClInclude Include="mod\ModManager.h" />
+    <ClInclude Include="mod\NodeMod.h" />
     <ClInclude Include="nlohmann\json.hpp" />
     <ClInclude Include="nlohmann\json_fwd.hpp" />
+    <QtMoc Include="ui\CustomSidebar.h" />
+    <QtMoc Include="ui\CustomTitleBar.h" />
+    <ClInclude Include="ui\WindowHelper.h" />
     <QtMoc Include="ui\CustomTextEdit.h" />
     <QtMoc Include="ui\TempConnectionItem.h" />
     <QtMoc Include="ui\LinkCreationManager.h" />
-    <QtMoc Include="ui\ConnectionAnchor.h" />
+    <ClInclude Include="ui\ConnectionAnchor.h" />
     <QtMoc Include="ui\LinkGraphicsItem.h" />
     <QtMoc Include="ui\NodeGraphicsItem.h" />
     <QtMoc Include="ui\WarRoomMainWindow.h" />

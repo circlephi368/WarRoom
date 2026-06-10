@@ -17,7 +17,7 @@ namespace warroom {
     }
 
     void AddNodeCommand::undo(WarRoomModel& model) {
-        model.removeNode(nodeId_);
+        model.removeNode(nodeId_, true);
     }
 
     std::string AddNodeCommand::description() const {

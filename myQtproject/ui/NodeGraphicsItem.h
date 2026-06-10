@@ -2,6 +2,7 @@
 #pragma once
 #include <QGraphicsItem>
 #include <QPainter>
+#include <QPointer>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsProxyWidget>
 #include <QTextEdit>
@@ -22,7 +23,7 @@ class NodeGraphicsItem : public QGraphicsObject
 public:
     // 构造函数声明
     NodeGraphicsItem(const std::string& nodeId, warroom::WarRoomModel& model, QGraphicsItem* parent = nullptr);
-
+    ~NodeGraphicsItem();
     // 包围盒
     QRectF boundingRect() const override;
     // 获取自定义包围盒（包含子树）
@@ -50,6 +51,9 @@ public:
 
     // 刷新显示（从模型重新读取数据）
     void refresh();
+
+    // 刷新字体（字体配置变更时调用）
+    void refreshFont(const QFont& font);
 
     // 更新 Z 顺序
     void updateAbsoluteZ(int absolute_z);
@@ -88,6 +92,18 @@ public:
 
     // 由外部调用：强制保存并退出编辑（例如点击其他节点时）
     void saveAndExitEditMode();
+    
+    /**
+     * @brief 在节点被删除前调用，使节点进入"安全状态"
+     * 会隐藏所有锚点、保存并退出编辑模式、断开信号连接
+     */
+    void prepareForRemoval();
+
+    /**
+     * @brief 检查节点是否即将被删除（用于判断是否还能进行操作）
+     */
+    bool isPendingRemoval() const { return m_pendingRemoval; }
+
 
 signals:
     void positionChanged(const std::string& nodeId, float newX, float newY);
@@ -135,9 +151,9 @@ private:
     float m_resizeStartWidth = 0.0f;
     float m_resizeStartHeight = 0.0f;
     bool m_resizingEnabled = true;      // 是否允许调整大小
-
     static constexpr int HANDLE_SIZE = 12;      // 手柄大小（像素）
     static constexpr int HANDLE_HIT_TOLERANCE = 10;  // 命中容差
+
 
     void createInlineEditor();
     void destroyEditor();
@@ -149,6 +165,8 @@ private:
     QGraphicsProxyWidget* m_editorProxy = nullptr;
     QTextEdit* m_textEdit = nullptr;
     QTextDocument m_previewDocument;      // 预览用文档（与编辑器共用配置）
+
+    bool m_pendingRemoval = false;  // 标记是否正在被删除
 
     // 字体等配置（可从模型或全局读取）
     QFont m_editorFont{ "Microsoft YaHei", 10 };

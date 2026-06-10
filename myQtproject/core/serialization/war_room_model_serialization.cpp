@@ -1,8 +1,16 @@
 // war_room_model_serialization.cpp
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "core/serialization/war_room_model_serialization.h"
 #include "core/warroom/war_room_model.h"
+#include "mod/ModManager.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include <codecvt>
+#include <locale>
 #include <iostream>
 
 namespace warroom {
@@ -153,6 +161,28 @@ namespace warroom {
 		j["tool_category"] = node.tool_category;
 		j["tool_summary"] = node.tool_summary;
 
+		// ---- 节点模组字段 ----
+		// 主模组
+		if (!node.primary_mod_type.empty()) {
+			j["primary_mod_type"] = node.primary_mod_type;
+			if (!node.primary_mod_data.is_null()) {
+				j["primary_mod_data"] = node.primary_mod_data;
+			}
+		}
+		// 辅助模组
+		if (!node.auxiliary_mod_types.empty()) {
+			nlohmann::json auxTypes = nlohmann::json::array();
+			for (const auto& t : node.auxiliary_mod_types) auxTypes.push_back(t);
+			j["auxiliary_mod_types"] = auxTypes;
+		}
+		if (!node.auxiliary_mod_data.empty()) {
+			nlohmann::json auxData = nlohmann::json::object();
+			for (const auto& kv : node.auxiliary_mod_data) {
+				auxData[kv.first] = kv.second;
+			}
+			j["auxiliary_mod_data"] = auxData;
+		}
+
 		return j;
 	}
 
@@ -198,6 +228,23 @@ namespace warroom {
 		node.collapsed_display = groupDisplayModeFromString(j.value("collapsed_display", "count_badge"));
 		node.tool_category = j.value("tool_category", "");
 		node.tool_summary = j.value("tool_summary", "");
+
+		// ---- 节点模组字段（向后兼容：旧存档没有这些字段） ----
+		node.primary_mod_type = j.value("primary_mod_type", std::string{});
+		if (j.contains("primary_mod_data")) {
+			node.primary_mod_data = j["primary_mod_data"];
+		}
+		if (j.contains("auxiliary_mod_types") && j["auxiliary_mod_types"].is_array()) {
+			for (const auto& t : j["auxiliary_mod_types"]) {
+				node.auxiliary_mod_types.push_back(t.get<std::string>());
+			}
+		}
+		if (j.contains("auxiliary_mod_data") && j["auxiliary_mod_data"].is_object()) {
+			for (auto it = j["auxiliary_mod_data"].begin();
+			     it != j["auxiliary_mod_data"].end(); ++it) {
+				node.auxiliary_mod_data[it.key()] = it.value();
+			}
+		}
 
 		return node;
 	}
@@ -324,6 +371,10 @@ namespace warroom {
 		// 节点 - 直接遍历
 		nlohmann::json nodes = nlohmann::json::array();
 		for (const auto& pair : nodes_) {
+			// 在序列化前，把模组运行时数据回写到 WarNode 的 mod 字段
+			// （需要 const_cast，因为 toJson 是 const 但模组钩子要写 WarNode）
+			WarNode* mutable_node = const_cast<WarNode*>(&pair.second);
+			ModManager::instance().saveNodeModData(mutable_node);
 			nodes.push_back(::warroom::toJson(pair.second));
 		}
 		j["nodes"] = nodes;
@@ -456,18 +507,46 @@ namespace warroom {
 		}
 	}
 
-	// 便捷方法：保存到文件
+	// 便捷方法：保存到文件（支持 Unicode 路径）
 	bool WarRoomModel::saveToFile(const std::string& filepath) const {
+#ifdef _WIN32
+		// Windows: 转换为 wstring 以支持 Unicode 路径
+		int size_needed = MultiByteToWideChar(CP_UTF8, 0, filepath.c_str(), (int)filepath.size(), NULL, 0);
+		std::wstring wpath(size_needed, 0);
+		MultiByteToWideChar(CP_UTF8, 0, filepath.c_str(), (int)filepath.size(), &wpath[0], size_needed);
+
+		std::ofstream file(wpath);
+#else
 		std::ofstream file(filepath);
+#endif
 		if (!file.is_open()) return false;
-		file << toJson().dump(2);  // 缩进2空格
+
+		// 写入 UTF-8 BOM（可选，但推荐）
+		file << "\xEF\xBB\xBF";
+		file << toJson().dump(2);
 		return file.good();
 	}
 
-	// 便捷方法：从文件加载
+	// 便捷方法：从文件加载（支持 Unicode 路径）
 	bool WarRoomModel::loadFromFile(const std::string& filepath) {
+#ifdef _WIN32
+		int size_needed = MultiByteToWideChar(CP_UTF8, 0, filepath.c_str(), (int)filepath.size(), NULL, 0);
+		std::wstring wpath(size_needed, 0);
+		MultiByteToWideChar(CP_UTF8, 0, filepath.c_str(), (int)filepath.size(), &wpath[0], size_needed);
+
+		std::ifstream file(wpath);
+#else
 		std::ifstream file(filepath);
+#endif
 		if (!file.is_open()) return false;
+
+		// 跳过可能的 UTF-8 BOM
+		char bom[3];
+		file.read(bom, 3);
+		if (!(bom[0] == (char)0xEF && bom[1] == (char)0xBB && bom[2] == (char)0xBF)) {
+			file.seekg(0);
+		}
+
 		nlohmann::json j;
 		file >> j;
 		return fromJson(j);

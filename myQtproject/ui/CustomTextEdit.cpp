@@ -1,3 +1,4 @@
+// CustomTextEdit.cpp
 #include "CustomTextEdit.h"
 #include <QScrollBar>
 #include <QAbstractTextDocumentLayout>
@@ -8,15 +9,21 @@ CustomTextEdit::CustomTextEdit(QWidget* parent) : QTextEdit(parent) {
     setAttribute(Qt::WA_OpaquePaintEvent, false);
     setAttribute(Qt::WA_TranslucentBackground, true);
 
-    // 确保文档背景透明
-    document()->setDocumentMargin(0);
-
+    //document()->setDocumentMargin(0);
     setCustomScrollbar(true);
 }
 
+void CustomTextEdit::prepareForDestruction()
+{
+    m_isValid = false;
+    // 清除所有待处理的事件
+    setEnabled(false);
+    // 不主动删除，让 Qt 处理
+}
+
 void CustomTextEdit::setTransparentMode(bool transparent) {
+    if (!m_isValid) return;
     m_transparentMode = transparent;
-    // 透明模式 确保完全无背景
     if (m_transparentMode) {
         setStyleSheet("QTextEdit { background: transparent; }");
     }
@@ -24,6 +31,7 @@ void CustomTextEdit::setTransparentMode(bool transparent) {
 }
 
 void CustomTextEdit::setCustomScrollbar(bool enabled) {
+    if (!m_isValid) return;
     m_customScrollbar = enabled;
     if (enabled) {
         setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -32,36 +40,38 @@ void CustomTextEdit::setCustomScrollbar(bool enabled) {
 }
 
 void CustomTextEdit::paintEvent(QPaintEvent* event) {
-    if (m_transparentMode) {
-        // 完全透明模式：只让 QTextEdit 绘制文本，不绘制任何背景
-        // 直接调用基类，但需要确保 viewport 背景不绘制
-        QTextEdit::paintEvent(event);
-    }
-    else {
-        // 编辑模式：可以保持原有行为或简单调用基类
-        QTextEdit::paintEvent(event);
-    }
+    if (!m_isValid) return;
+    QTextEdit::paintEvent(event);
 }
 
 void CustomTextEdit::resizeEvent(QResizeEvent* event) {
+    if (!m_isValid) return;
     QTextEdit::resizeEvent(event);
     updateScrollbarVisibility();
 }
 
 void CustomTextEdit::focusInEvent(QFocusEvent* event) {
+    if (!m_isValid) {
+        event->ignore();
+        return;
+    }
     QTextEdit::focusInEvent(event);
     m_transparentMode = false;
     setStyleSheet("QTextEdit { background: transparent; }");
 }
 
 void CustomTextEdit::focusOutEvent(QFocusEvent* event) {
+    if (!m_isValid) {
+        event->ignore();
+        return;
+    }
     QTextEdit::focusOutEvent(event);
     m_transparentMode = true;
     setStyleSheet("QTextEdit { background: transparent; }");
 }
 
 void CustomTextEdit::updateScrollbarVisibility() {
-    if (!m_customScrollbar) return;
+    if (!m_isValid || !m_customScrollbar) return;
 
     QTextDocument* doc = document();
     if (!doc) return;

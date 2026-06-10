@@ -31,13 +31,22 @@ public:
 
     void cleanup();
 
+    void shutdown() {
+        cleanup();
+        m_scene = nullptr;
+        m_mainWindow = nullptr;
+    }
+
     ConnectionAnchor* findSnapAnchor(const QPointF& scenePos, float radius);
+
+    bool isConnecting() const { return m_isConnecting; }
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     LinkCreationManager() = default;
+    ~LinkCreationManager();
     void showAllAnchors(bool show);
     ConnectionAnchor* m_startAnchor = nullptr;
     ConnectionAnchor* m_snapAnchor = nullptr;

@@ -10,6 +10,8 @@
 #include <qstring.h>
 #include <qtmetamacros.h>
 #include <qwidget.h>
+#include <qfont.h>
+#include <qcolor.h>
 
 // 项目核心
 #include "core/command/undo_manager.h"
@@ -20,10 +22,14 @@
 // 项目 UI
 #include "ui_myQtproject.h"
 #include "warroomview.h"
+#include "ui/CustomTitleBar.h"
+#include "ui/CustomSidebar.h"
+#include "ui/WindowHelper.h"
 
 // 前向声明
 class QGraphicsScene;
 class QGraphicsView;
+class QPushButton;
 class NodeGraphicsItem;
 
 // 节点上下文信息（用于删除撤销）
@@ -47,6 +53,22 @@ public:
     void deleteLink(const warroom::Uuid& linkId);
     void createLinkBetweenNodes(const std::string& fromId, int fromEdge,
         const std::string& toId, int toEdge);
+    // 拖拽锚点到空白处：创建新节点并自动连线
+    void createNodeAndLink(const std::string& fromId, int fromEdge, QPointF scenePos);
+
+    // ---- 字体配置（公开，供 NodeGraphicsItem/LinkGraphicsItem 调用）----
+    static QFont getNodeFont();
+    void saveNodeFont(const QFont& font);
+    static void loadNodeFont();
+
+    // 刷新所有节点字体的接口（字体变更后调用）
+    void refreshAllNodeFonts();
+
+    // ---- 背景颜色配置（公开，供 WarRoomView 调用）----
+    static QColor getCanvasBackgroundColor();
+    static void saveCanvasBackgroundColor(const QColor& color);
+    static void loadCanvasBackgroundColor();
+    static QColor s_canvasBackgroundColor;
 
 private slots:
     // 文件操作
@@ -132,11 +154,21 @@ private:
     void deleteSelectedNode();
     void addNodeAtPosition(QPointF scenePos);
     void addNodeAtPosition(QPointF scenePos, const warroom::Uuid& parentId);
+    // 多模态节点入口：在指定位置创建一个绑定了 modId 主模组的节点
+    void addNodeWithMod(QPointF scenePos,
+        const warroom::Uuid& parentId, const std::string& modId);
     void editNode(const std::string& nodeId);
 
     // ---- 右键菜单 ----
     void contextMenuEvent(QContextMenuEvent* event) override;
 
+    // ---- 主窗口ui ----
+    void setupCustomUi();              // 构建自绘 UI 框架
+    void setupTitleBar();              // 设置标题栏信号连接
+    void setupSidebar();               // 设置侧边栏信号连接
+    void buildSidebarData(std::vector<TreeNodeData>& outNodes) const;
+    
+    
     // ---- 成员变量 ----
     Ui::myQtprojectClass ui;
     QGraphicsScene* m_scene = nullptr;
@@ -150,7 +182,60 @@ private:
     QString m_currentFilePath;                      // 当前文件路径
     std::string m_currentEditingNodeId;             // 当前编辑中的节点 ID
 
+    // ---- 自绘 UI 组件 ----
+    QWidget* m_centralContainer = nullptr;   // 中央容器
+    CustomTitleBar* m_titleBar = nullptr;    // 自绘标题栏
+    CustomSidebar* m_sidebar = nullptr;      // 左侧边栏
+    QWidget* m_canvasArea = nullptr;         // 画布区域（容纳 WarRoomView）
+    QWidget* m_settingsCorner = nullptr;     // 左下角设置按钮容器
+    QPushButton* m_settingsButton = nullptr; // 左下角设置按钮
+    QPushButton* m_sidebarCollapseBtn = nullptr; // 侧边栏折叠按钮
+
+    // ---- 配置管理 ----
+    // 返回配置目录（独立于可执行文件，用于存储基础信息）
+    static QString getConfigDir();
+    static QString getConfigFilePath();
+
+    // 读写上次打开的文件路径
+    static QString readLastOpenFilePath();
+    static void writeLastOpenFilePath(const QString& path);
+
+    // 从文件路径加载
+    void loadFromFilePath(const QString& path);
+
+    // 设置按钮槽
+    void onSettingsClicked();
+
+    // 窗口拖拽状态
+    bool m_windowDragging = false;
+    QPoint m_dragGlobalStart;
+
+    // 全局字体配置（静态，所有节点共享）
+    static QFont s_nodeFont;
+
 protected:
     // 事件过滤器（处理场景点击以退出编辑）
     bool eventFilter(QObject* watched, QEvent* event) override;
+
+    // 窗口拖拽和缩放（无边框窗口必需）
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
+
+    // 标题栏信号处理
+    void onTitleBarMinimize();
+    void onTitleBarMaximize();
+    void onTitleBarClose();
+
+    // 侧边栏信号处理
+    void onSidebarNodeFocused(const std::string& nodeId);
+    void onSidebarNodeDoubleClicked(const std::string& nodeId);
+    void onToggleSidebarCollapse();  // 切换侧边栏折叠/展开
+
+    // 侧边栏数据刷新
+    void refreshSidebarTree();
+
+    void showEvent(QShowEvent* event) override;
 };

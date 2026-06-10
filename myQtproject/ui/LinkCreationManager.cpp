@@ -63,6 +63,14 @@ void LinkCreationManager::startConnection(ConnectionAnchor* anchor, const QPoint
 	m_startAnchor = anchor;
 	m_isConnecting = true;
 
+	// 临时禁用视图的框选模式，避免拖拽锚点时触发 RubberBand 框选
+	if (!m_scene->views().isEmpty()) {
+		auto* view = m_scene->views().first();
+		// 记录之前的拖拽模式（如果未来需要恢复的话）
+		// 目前 WarRoomView 默认就是 RubberBandDrag，直接设为 NoDrag
+		view->setDragMode(QGraphicsView::NoDrag);
+	}
+
 	// 显示所有节点的锚点
 	showAllAnchors(true);
 
@@ -95,15 +103,24 @@ void LinkCreationManager::updateTempConnection(const QPointF& scenePos)
 
 	if (snapAnchor && snapAnchor != m_startAnchor) {
 		QPointF snapPos = snapAnchor->scenePos();
-		m_tempItem->setSnapPoint(snapPos);
+		// 传递起点和终点的边缘方向
+		m_tempItem->setSnapPoint(snapPos, m_startAnchor->edge(), snapAnchor->edge());
 		m_snapAnchor = snapAnchor;
-		// 可选：改变光标样式表示可吸附
+		// 改变光标样式表示可吸附
 		m_scene->views().first()->setCursor(Qt::PointingHandCursor);
 	}
 	else {
 		m_tempItem->setEndPoint(scenePos);
 		m_snapAnchor = nullptr;
 		m_scene->views().first()->setCursor(Qt::CrossCursor);
+	}
+}
+LinkCreationManager::~LinkCreationManager()
+{
+	cleanup();
+	if (m_scene) {
+		m_scene->removeEventFilter(this);
+		m_scene = nullptr;
 	}
 }
 void LinkCreationManager::showAllAnchors(bool show)
@@ -151,6 +168,15 @@ void LinkCreationManager::endConnection(const QPointF& scenePos)
 				fromNode->nodeId(), m_startAnchor->edge(), toNode->nodeId(), targetAnchor->edge());
 		}
 	}
+	else {
+		// 未吸附到任何锚点：在释放位置创建新节点并自动连线
+		NodeGraphicsItem* fromNode = m_startAnchor->parentNode();
+		if (fromNode) {
+			qDebug() << "  Creating new node at" << scenePos << "with link from" << fromNode->nodeId().c_str();
+			m_mainWindow->createNodeAndLink(
+				fromNode->nodeId(), m_startAnchor->edge(), scenePos);
+		}
+	}
 
 	cleanup();
 }
@@ -175,7 +201,10 @@ void LinkCreationManager::cleanup()
 	m_isConnecting = false;
 
 	if (m_scene && !m_scene->views().isEmpty()) {
-		m_scene->views().first()->setCursor(Qt::ArrowCursor);
+		auto* view = m_scene->views().first();
+		view->setCursor(Qt::ArrowCursor);
+		// 恢复框选模式
+		view->setDragMode(QGraphicsView::RubberBandDrag);
 	}
 }
 

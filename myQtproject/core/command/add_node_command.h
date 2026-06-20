@@ -4,11 +4,13 @@
 
 namespace warroom {
 
+    // 添加节点命令
+    // - 在构造时完整拷贝节点数据
+    // - execute() 把快照拷贝写入模型
+    // - undo() 从模型移除节点
+    // - 支持多次 execute/undo 循环（用于 UndoManager 的 redo）
     class AddNodeCommand : public Command {
     public:
-        // node: 要添加的节点（id必须已生成）
-        // parentId: 父节点id，空则挂到文档根
-        // index: 插入位置，-1表示末尾
         AddNodeCommand(WarNode node, Uuid parentId, int index = -1);
 
         void execute(WarRoomModel& model) override;
@@ -19,11 +21,10 @@ namespace warroom {
         const Uuid& getNodeId() const { return nodeId_; }
 
     private:
-        WarNode node_;
-        Uuid nodeId_;
-        Uuid parentId_;
-        int index_;
-        bool executed_ = false;  // 防止重复执行
+        WarNode nodeSnapshot_; // 完整节点数据快照（深拷贝）
+        Uuid nodeId_;          // 该节点的 uuid（来自 snapshot）
+        Uuid parentId_;        // 父节点 uuid
+        int index_;            // 插入位置，-1 表示末尾
     };
 
 } // namespace warroom

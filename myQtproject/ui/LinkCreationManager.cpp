@@ -117,11 +117,21 @@ void LinkCreationManager::updateTempConnection(const QPointF& scenePos)
 }
 LinkCreationManager::~LinkCreationManager()
 {
+	// [DESTDBG] 单例析构入口，记录 m_scene 与 m_mainWindow 状态
+	qDebug().nospace().noquote()
+		<< "[DESTDBG] >>> ~LinkCreationManager ENTER this=" << static_cast<void*>(this)
+		<< " m_scene=" << static_cast<void*>(m_scene)
+		<< " m_mainWindow=" << static_cast<void*>(m_mainWindow)
+		<< " m_isConnecting=" << m_isConnecting
+		<< " m_tempItem=" << static_cast<void*>(m_tempItem.get());
 	cleanup();
 	if (m_scene) {
+		qDebug() << "[DESTDBG]   ~LinkCreationManager: removing event filter from m_scene";
 		m_scene->removeEventFilter(this);
 		m_scene = nullptr;
 	}
+	qDebug().nospace().noquote()
+		<< "[DESTDBG] <<< ~LinkCreationManager EXIT this=" << static_cast<void*>(this);
 }
 void LinkCreationManager::showAllAnchors(bool show)
 {

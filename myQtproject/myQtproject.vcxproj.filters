@@ -88,6 +88,15 @@
     <ClCompile Include="test_main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="core\command\set_node_color_command.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\ColorPickerDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\CameraAnimator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\command\add_link_command.h">
@@ -168,6 +177,18 @@
     <ClInclude Include="mod\builtin\VideoMod.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="core\command\set_node_color_command.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod\builtin\AnnotationMod.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod\KeyBinding.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod\builtin\WebMod.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="ui\warroomview.h">
@@ -197,5 +218,20 @@
     <QtMoc Include="ui\CustomTitleBar.h">
       <Filter>Header Files</Filter>
     </QtMoc>
+    <QtMoc Include="ui\ColorPickerDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ui\TodoSidebar.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ui\CameraAnimator.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ui\HighlightOverlay.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="mod\MOD_DEVELOPMENT_GUIDE.txt" />
   </ItemGroup>
 </Project>

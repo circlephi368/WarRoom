@@ -52,7 +52,8 @@ namespace warroom {
 	}
 
 	Uuid WarRoomModel::addNode(WarNode node, Uuid parent_id, int index) {
-		Uuid node_id = node.id;
+	if (is_read_only_) return "";
+	Uuid node_id = node.id;
 		if (node_id.empty()) node_id = generateUuid();
 		node.id = node_id;
 
@@ -87,7 +88,8 @@ namespace warroom {
 	}
 
 	bool WarRoomModel::removeNode(Uuid id, bool reparentChildren) {
-		if (id == document_root_id_) return false;
+	if (is_read_only_) return false;
+	if (id == document_root_id_) return false;
 
 		auto it = nodes_.find(id);
 		if (it == nodes_.end()) return false;
@@ -159,6 +161,9 @@ namespace warroom {
 		// 清理节点的模组运行时数据（若有）
 		ModManager::instance().cleanupNodeModData(id);
 
+		// 从待办列表中移除
+		todo_list_.erase(std::remove(todo_list_.begin(), todo_list_.end(), id), todo_list_.end());
+
 		// 删除节点
 		nodes_.erase(it);
 
@@ -166,8 +171,9 @@ namespace warroom {
 	}
 
 	void WarRoomModel::setNodeParent(Uuid node_id, Uuid new_parent_id, int index) {
-		WarNode* node = getNodeMutable(node_id);
-		if (!node) return;
+	if (is_read_only_) return;
+	WarNode* node = getNodeMutable(node_id);
+	if (!node) return;
 		if (new_parent_id.empty() || nodes_.find(new_parent_id) == nodes_.end()) {
 			new_parent_id = document_root_id_;
 		}
@@ -190,13 +196,15 @@ namespace warroom {
 	}
 
 	void WarRoomModel::setNodeColor(Uuid node_id, Color color){
-		getNodeMutable(node_id)->color = color;
-	}
+	if (is_read_only_) return;
+	getNodeMutable(node_id)->color = color;
+}
 
-	void WarRoomModel::setNodesize(Uuid node_id, float width, float height){
-		getNodeMutable(node_id)->width = width;
-		getNodeMutable(node_id)->height = height;
-	}
+void WarRoomModel::setNodesize(Uuid node_id, float width, float height){
+	if (is_read_only_) return;
+	getNodeMutable(node_id)->width = width;
+	getNodeMutable(node_id)->height = height;
+}
 
 	void WarRoomModel::updateAbsolutePosition(Uuid node_id) {
 		WarNode* node = getNodeMutable(node_id);
@@ -299,7 +307,8 @@ namespace warroom {
 	}
 
 	Uuid WarRoomModel::addLink(WarLink link) {
-		Uuid link_id = link.id;
+	if (is_read_only_) return "";
+	Uuid link_id = link.id;
 		if (link_id.empty()) link_id = generateUuid();
 		link.id = link_id;
 
@@ -321,8 +330,9 @@ namespace warroom {
 	}
 
 	bool WarRoomModel::removeLink(Uuid id) {
-		auto it = links_.find(id);
-		if (it == links_.end()) return false;
+	if (is_read_only_) return false;
+	auto it = links_.find(id);
+	if (it == links_.end()) return false;
 
 		// 清理索引
 		const WarLink& link = it->second;
@@ -364,29 +374,33 @@ namespace warroom {
 	}
 
 	Uuid WarRoomModel::addZone(WarZone zone) {
-		Uuid zone_id = zone.id.empty() ? generateUuid() : zone.id;
+	if (is_read_only_) return "";
+	Uuid zone_id = zone.id.empty() ? generateUuid() : zone.id;
 		zone.id = zone_id;
 		zones_[zone_id] = std::move(zone);
 		return zone_id;
 	}
 
 	bool WarRoomModel::removeZone(Uuid id) {
-		return zones_.erase(id) > 0;
-	}
+	if (is_read_only_) return false;
+	return zones_.erase(id) > 0;
+}
 
-	void WarRoomModel::addNodeToZone(Uuid node_id, Uuid zone_id) {
-		auto it = zones_.find(zone_id);
-		if (it == zones_.end()) return;
-		auto& members = it->second.member_ids;
-		if (std::find(members.begin(), members.end(), node_id) == members.end()) {
-			members.push_back(node_id);
-		}
+void WarRoomModel::addNodeToZone(Uuid node_id, Uuid zone_id) {
+	if (is_read_only_) return;
+	auto it = zones_.find(zone_id);
+	if (it == zones_.end()) return;
+	auto& members = it->second.member_ids;
+	if (std::find(members.begin(), members.end(), node_id) == members.end()) {
+		members.push_back(node_id);
 	}
+}
 
-	void WarRoomModel::removeNodeFromZone(Uuid node_id, Uuid zone_id) {
-		auto it = zones_.find(zone_id);
-		if (it == zones_.end()) return;
-		auto& members = it->second.member_ids;
+void WarRoomModel::removeNodeFromZone(Uuid node_id, Uuid zone_id) {
+	if (is_read_only_) return;
+	auto it = zones_.find(zone_id);
+	if (it == zones_.end()) return;
+	auto& members = it->second.member_ids;
 		members.erase(std::remove(members.begin(), members.end(), node_id), members.end());
 	}
 
@@ -425,4 +439,115 @@ namespace warroom {
 
 		return abs_z;
 	}
+
+	// 计算子树中所有节点的 absolute_z 最大值（递归）
+	int WarRoomModel::computeSubtreeMaxAbsZ(Uuid node_id) const {
+		int maxAbs = computeAbsoluteZ(node_id);
+		for (const Uuid& childId : getChildren(node_id)) {
+			int childMax = computeSubtreeMaxAbsZ(childId);
+			if (childMax > maxAbs) maxAbs = childMax;
+		}
+		return maxAbs;
+	}
+
+	// ---- Z 值归一化（排名压缩）----
+	// 算法：
+	//   Step 1: 收集所有节点的 absolute_z，按升序排序（提取视觉层级关系）
+	//   Step 2: 排名压缩 compressed_abs_z = rank（从1开始，步长=1）
+	//   Step 3: 反向推出新的 relative_z：
+	//             node.new_relative_z = compressed_abs_z(node) - compressed_abs_z(parent)
+	//           其中根的直接子节点的 parent.abs_z 视为 0
+	// 结果：所有 relative_z 为正整数，压缩后最大 absolute_z = 节点数
+	void WarRoomModel::normalizeZValues() {
+		if (nodes_.empty()) {
+			g_max_abs_z_ = 0;
+			return;
+		}
+
+		// Step 1: 收集所有节点 ID 及其 absolute_z，并排序
+		struct NodeZPair {
+			Uuid id;
+			int abs_z;
+		};
+		std::vector<NodeZPair> pairs;
+		pairs.reserve(nodes_.size());
+		for (const auto& [id, _] : nodes_) {
+			pairs.push_back({ id, computeAbsoluteZ(id) });
+		}
+		std::sort(pairs.begin(), pairs.end(),
+			[](const NodeZPair& a, const NodeZPair& b) {
+				return a.abs_z < b.abs_z;
+			});
+
+		// Step 2: 排名压缩（步长=1，rank 从 1 开始）
+		//   compressed_abs_z[i] = i + 1（因为 pairs[i] 是第 i 小的）
+		// 建立 id → compressed_abs_z 的映射
+		std::unordered_map<Uuid, int> compressed;
+		compressed.reserve(pairs.size());
+		for (size_t i = 0; i < pairs.size(); ++i) {
+			compressed[pairs[i].id] = static_cast<int>(i + 1);  // rank = i+1
+		}
+
+		// Step 3: 反向推出新的 relative_z（自根向下 BFS/DFS，保证父节点先处理）
+		// 用 BFS 保证父节点在其子节点之前被处理
+		std::vector<Uuid> queue;
+		queue.reserve(nodes_.size());
+
+		// 先把 document_root 的直接子节点入队（它们没有 relative_z，只有 compressed_abs_z）
+		for (const Uuid& childId : getChildren(document_root_id_)) {
+			queue.push_back(childId);
+		}
+
+		// BFS：从父到子遍历
+		for (size_t i = 0; i < queue.size(); ++i) {
+			Uuid nodeId = queue[i];
+			WarNode* node = getNodeMutable(nodeId);
+			if (!node) continue;
+
+			Uuid parentId = node->parent_id;
+			int parentCompressed = 0;
+			if (!parentId.empty() && parentId != document_root_id_) {
+				parentCompressed = compressed[parentId];
+			}
+			node->relative_z = compressed[nodeId] - parentCompressed;
+
+			// 将子节点入队
+			for (const Uuid& childId : getChildren(nodeId)) {
+				queue.push_back(childId);
+			}
+		}
+
+		// Step 4: 归一化后，最大 absolute_z = 节点总数 = pairs.size()
+		g_max_abs_z_ = static_cast<int>(pairs.size());
+	}
+
+	// ---- 待办列表 ----
+	void WarRoomModel::setNodeTodoState(Uuid id, TodoState state) {
+		if (is_read_only_) return;
+		WarNode* node = getNodeMutable(id);
+		if (!node) return;
+
+		TodoState oldState = node->todo_state;
+		node->todo_state = state;
+
+		if (state == TodoState::None) {
+			// 从待办列表移除
+			todo_list_.erase(std::remove(todo_list_.begin(), todo_list_.end(), id), todo_list_.end());
+		}
+		else {
+			// 新加入待办列表（从 None 切换到 Pending/Done）
+			if (oldState == TodoState::None) {
+				node->todo_created_at = std::chrono::system_clock::now();
+				todo_list_.push_back(id);
+			}
+			// Done 切回 Pending 时不更新时间，保留原始创建时间
+		}
+	}
+
+	TodoState WarRoomModel::getNodeTodoState(Uuid id) const {
+		const WarNode* node = getNode(id);
+		if (!node) return TodoState::None;
+		return node->todo_state;
+	}
+
 } // namespace warroom

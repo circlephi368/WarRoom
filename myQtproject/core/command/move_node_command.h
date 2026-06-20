@@ -14,7 +14,6 @@ namespace warroom {
     private:
         Uuid nodeId_;
         float oldX_, oldY_, newX_, newY_;
-        bool executed_ = false;
     };
 
 } // namespace warroom

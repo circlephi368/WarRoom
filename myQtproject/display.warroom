@@ -1,31 +1,10 @@
 ﻿{
   "camera_position": {
-    "x": -210.45001220703125,
-    "y": -20.700000762939453
+    "x": -2300.917236328125,
+    "y": -340.4825744628906
   },
   "document_root_id": "a28aadc6-cbba-436b-a060-df290033224b",
   "links": [
-    {
-      "color": "#3498db",
-      "end_anchor": {
-        "edge": 3,
-        "node_id": "0b73f502-7fba-4b66-8d77-1c4759e74090",
-        "offset_x": 0.0,
-        "offset_y": 0.0,
-        "type": "node"
-      },
-      "id": "777fa179-980d-43dc-a381-a4cf55bebb91",
-      "label": "",
-      "start_anchor": {
-        "edge": 1,
-        "node_id": "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
-        "offset_x": 0.0,
-        "offset_y": 0.0,
-        "type": "node"
-      },
-      "type": "dependency",
-      "waypoints": []
-    },
     {
       "color": "#3498db",
       "end_anchor": {
@@ -40,6 +19,27 @@
       "start_anchor": {
         "edge": 1,
         "node_id": "8044fb1a-76fa-4ae2-bebf-08bba7946d94",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "type": "dependency",
+      "waypoints": []
+    },
+    {
+      "color": "#3498db",
+      "end_anchor": {
+        "edge": 3,
+        "node_id": "0b73f502-7fba-4b66-8d77-1c4759e74090",
+        "offset_x": 0.0,
+        "offset_y": 0.0,
+        "type": "node"
+      },
+      "id": "777fa179-980d-43dc-a381-a4cf55bebb91",
+      "label": "",
+      "start_anchor": {
+        "edge": 1,
+        "node_id": "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
         "offset_x": 0.0,
         "offset_y": 0.0,
         "type": "node"
@@ -135,33 +135,6 @@
   "nodes": [
     {
       "children_ids": [
-        "8044fb1a-76fa-4ae2-bebf-08bba7946d94",
-        "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
-        "7d5129ee-8a46-4763-8022-667c4ab8a2f7",
-        "040a6bc1-313e-4b22-9d7d-2020240032ae",
-        "0b73f502-7fba-4b66-8d77-1c4759e74090",
-        "b87c52b4-964d-4539-969d-e951340ea459"
-      ],
-      "collapsed_display": "count_badge",
-      "color": "#FF2ECC71",
-      "full_text": "还有group功能\n\n",
-      "height": 646.5,
-      "id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "is_collapsed": false,
-      "kind": "leaf",
-      "parent_id": "a28aadc6-cbba-436b-a060-df290033224b",
-      "pos_x": -568.4506225585938,
-      "pos_y": -356.8369445800781,
-      "priority": 0,
-      "relative_z": 2389,
-      "tags": [],
-      "title": "新节点",
-      "tool_category": "",
-      "tool_summary": "",
-      "width": 651.0499877929688
-    },
-    {
-      "children_ids": [
         "1a85754e-c78a-482d-9000-48f144ee30b7"
       ],
       "collapsed_display": "count_badge",
@@ -183,6 +156,33 @@
       "width": 160.0
     },
     {
+      "children_ids": [
+        "8044fb1a-76fa-4ae2-bebf-08bba7946d94",
+        "9dee85f2-c1f9-4512-834d-c44b80c5f6e3",
+        "7d5129ee-8a46-4763-8022-667c4ab8a2f7",
+        "040a6bc1-313e-4b22-9d7d-2020240032ae",
+        "0b73f502-7fba-4b66-8d77-1c4759e74090",
+        "b87c52b4-964d-4539-969d-e951340ea459"
+      ],
+      "collapsed_display": "count_badge",
+      "color": "#FF2ECC71",
+      "full_text": "还有group功能\n\n",
+      "height": 646.5,
+      "id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "a28aadc6-cbba-436b-a060-df290033224b",
+      "pos_x": -2581.68359375,
+      "pos_y": -625.92626953125,
+      "priority": 0,
+      "relative_z": 2,
+      "tags": [],
+      "title": "新节点",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 651.0499877929688
+    },
+    {
       "children_ids": [],
       "collapsed_display": "count_badge",
       "color": "#FF1ABC9C",
@@ -192,35 +192,15 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -530.2114868164063,
-      "pos_y": -298.3369445800781,
+      "pos_x": -2543.444580078125,
+      "pos_y": -567.42626953125,
       "priority": 0,
-      "relative_z": 168,
+      "relative_z": 3,
       "tags": [],
       "title": "新节点",
       "tool_category": "",
       "tool_summary": "",
       "width": 181.0
-    },
-    {
-      "children_ids": [],
-      "collapsed_display": "count_badge",
-      "color": "#FFF1C40F",
-      "full_text": "编辑任何内容\n\n",
-      "height": 60.0,
-      "id": "0b73f502-7fba-4b66-8d77-1c4759e74090",
-      "is_collapsed": false,
-      "kind": "leaf",
-      "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -544.6006469726563,
-      "pos_y": 73.71307373046875,
-      "priority": 0,
-      "relative_z": 163,
-      "tags": [],
-      "title": "新节点",
-      "tool_category": "",
-      "tool_summary": "",
-      "width": 160.0
     },
     {
       "children_ids": [],
@@ -232,10 +212,30 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -432.2745361328125,
-      "pos_y": -180.8586883544922,
+      "pos_x": -2445.507568359375,
+      "pos_y": -449.947998046875,
       "priority": 0,
-      "relative_z": 167,
+      "relative_z": 2,
+      "tags": [],
+      "title": "新节点",
+      "tool_category": "",
+      "tool_summary": "",
+      "width": 160.0
+    },
+    {
+      "children_ids": [],
+      "collapsed_display": "count_badge",
+      "color": "#FFF1C40F",
+      "full_text": "编辑任何内容\n\n",
+      "height": 60.0,
+      "id": "0b73f502-7fba-4b66-8d77-1c4759e74090",
+      "is_collapsed": false,
+      "kind": "leaf",
+      "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
+      "pos_x": -2557.833740234375,
+      "pos_y": -195.37625122070313,
+      "priority": 0,
+      "relative_z": 1,
       "tags": [],
       "title": "新节点",
       "tool_category": "",
@@ -252,10 +252,10 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -350.69189453125,
-      "pos_y": 35.834259033203125,
+      "pos_x": -2363.9248046875,
+      "pos_y": -233.25506591796875,
       "priority": 0,
-      "relative_z": 173,
+      "relative_z": 5,
       "tags": [],
       "title": "新节点",
       "tool_category": "",
@@ -272,10 +272,10 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -159.35140991210938,
-      "pos_y": 81.77212524414063,
+      "pos_x": -2172.58447265625,
+      "pos_y": -187.31719970703125,
       "priority": 0,
-      "relative_z": 170,
+      "relative_z": 4,
       "tags": [],
       "title": "新节点",
       "tool_category": "",
@@ -292,14 +292,14 @@
       "is_collapsed": false,
       "kind": "leaf",
       "parent_id": "1a85754e-c78a-482d-9000-48f144ee30b7",
-      "pos_x": -385.89996337890625,
-      "pos_y": 138.0,
+      "pos_x": -2395.16552734375,
+      "pos_y": -145.6368408203125,
       "primary_mod_data": {
         "path": "2026-04-15_09.59.28.png"
       },
       "primary_mod_type": "builtin.image",
       "priority": 0,
-      "relative_z": 174,
+      "relative_z": 6,
       "tags": [],
       "title": "图片",
       "tool_category": "",
@@ -310,5 +310,5 @@
   "scout_log": [],
   "timeline": [],
   "zones": [],
-  "zoom_level": 0.8695651888847351
+  "zoom_level": 0.37593701481819153
 }

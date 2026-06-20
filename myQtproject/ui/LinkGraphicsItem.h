@@ -29,14 +29,14 @@ public:
 	void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;
 	/**
 	 * @param linkId 对应 WarLink::id
-	 * @param model  只读模型引用，用于解析锚点坐标
-	 * @param mainWindow 主窗口指针（用于删除连线等操作）
+	 * @param model  模型指针（外部所有权，析构时可能已失效）
 	 * @param parent 父图形项
 	 */
 	LinkGraphicsItem(const warroom::Uuid& linkId,
-		warroom::WarRoomModel& model,
-		WarRoomMainWindow* mainWindow,
+		warroom::WarRoomModel* model,
 		QGraphicsItem* parent = nullptr);
+
+	~LinkGraphicsItem();
 
 	// ---- QGraphicsItem 接口 ----
 	QRectF boundingRect() const override;
@@ -53,6 +53,14 @@ public:
 
 	// 根据相连节点的 Z 值更新自身的 Z 值
 	void updateZValueFromNodes();
+
+	// 刷新连线默认颜色（全局连线颜色配置变更时调用）
+	void refreshLinkColor(const QColor& color);
+
+signals:
+	// 请求删除此连线（由外部如 WarRoomMainWindow 响应）
+	void deletionRequested(const warroom::Uuid& linkId);
+
 private:
 	// ---- 颜色映射 ----
 	static QColor defaultColorForType(warroom::LinkType type);
@@ -86,9 +94,11 @@ private:
 
 	// ---- 数据成员 ----
 	warroom::Uuid m_linkId;
-	warroom::WarRoomModel& m_model;
-	WarRoomMainWindow* m_mainWindow = nullptr;
+	warroom::WarRoomModel* m_model;  // 外部所有权指针，析构时不删除
 
 	QPointF m_startPoint;
 	QPointF m_endPoint;
+
+	// 全局连线默认颜色缓存（由 refreshLinkColor 设置）
+	QColor m_globalLinkColor{ 150, 150, 150 };
 };

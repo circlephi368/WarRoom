@@ -38,12 +38,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;gui;network;widgets;multimediawidgets</QtModules>
+    <QtModules>core;gui;network;widgets;multimediawidgets;webenginewidgets</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;gui;network;widgets;multimediawidgets</QtModules>
+    <QtModules>core;gui;network;widgets;multimediawidgets;webenginewidgets</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -118,10 +118,13 @@
     <ClCompile Include="core\command\edit_node_command.cpp" />
     <ClCompile Include="core\command\move_node_command.cpp" />
     <ClCompile Include="core\command\resize_node_command.cpp" />
+    <ClCompile Include="core\command\set_node_color_command.cpp" />
     <ClCompile Include="core\command\undo_manager.cpp" />
     <ClCompile Include="core\serialization\war_room_model_serialization.cpp" />
     <ClCompile Include="core\warroom\war_room_model.cpp" />
     <ClCompile Include="test_main.cpp" />
+    <ClCompile Include="ui\CameraAnimator.cpp" />
+    <ClCompile Include="ui\ColorPickerDialog.cpp" />
     <ClCompile Include="ui\ConnectionAnchor.cpp" />
     <ClCompile Include="ui\CustomTextEdit.cpp" />
     <ClCompile Include="ui\LinkCreationManager.cpp" />
@@ -142,6 +145,7 @@
     <ClInclude Include="core\command\edit_node_command.h" />
     <ClInclude Include="core\command\move_node_command.h" />
     <ClInclude Include="core\command\resize_node_command.h" />
+    <ClInclude Include="core\command\set_node_color_command.h" />
     <ClInclude Include="core\command\undo_manager.h" />
     <ClInclude Include="core\serialization\enum_serialization.h" />
     <ClInclude Include="core\serialization\war_room_model_serialization.h" />
@@ -151,15 +155,22 @@
     <ClInclude Include="core\warroom\war_node.h" />
     <ClInclude Include="core\warroom\war_room_model.h" />
     <ClInclude Include="core\warroom\war_zone.h" />
+    <ClInclude Include="mod\builtin\AnnotationMod.h" />
     <ClInclude Include="mod\builtin\BuiltinMods.h" />
     <ClInclude Include="mod\builtin\ImageMod.h" />
     <ClInclude Include="mod\builtin\VideoMod.h" />
+    <ClInclude Include="mod\builtin\WebMod.h" />
+    <ClInclude Include="mod\KeyBinding.h" />
     <ClInclude Include="mod\ModManager.h" />
     <ClInclude Include="mod\NodeMod.h" />
     <ClInclude Include="nlohmann\json.hpp" />
     <ClInclude Include="nlohmann\json_fwd.hpp" />
     <QtMoc Include="ui\CustomSidebar.h" />
     <QtMoc Include="ui\CustomTitleBar.h" />
+    <QtMoc Include="ui\ColorPickerDialog.h" />
+    <QtMoc Include="ui\TodoSidebar.h" />
+    <QtMoc Include="ui\CameraAnimator.h" />
+    <QtMoc Include="ui\HighlightOverlay.h" />
     <ClInclude Include="ui\WindowHelper.h" />
     <QtMoc Include="ui\CustomTextEdit.h" />
     <QtMoc Include="ui\TempConnectionItem.h" />
@@ -169,6 +180,9 @@
     <QtMoc Include="ui\NodeGraphicsItem.h" />
     <QtMoc Include="ui\WarRoomMainWindow.h" />
     <QtMoc Include="ui\warroomview.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="mod\MOD_DEVELOPMENT_GUIDE.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

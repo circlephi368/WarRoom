@@ -17,6 +17,13 @@ namespace warroom {
         ColorBlock  // 折叠后显示缩略色块
     };
 
+    // 待办状态
+    enum class TodoState {
+        None = 0,    // 未启用待办
+        Pending = 1, // 待办中（未完成）
+        Done = 2     // 已完成
+    };
+
     struct WarNode {
         // ---- 身份与树结构 ----
         Uuid id;
@@ -29,6 +36,7 @@ namespace warroom {
         // ---- 通用属性 ----
         std::string title;
         std::string full_text;          // 长文本，支持 Markdown
+        std::string text_display_mode = "markdown";  // "markdown" 或 "plain"，决定预览渲染方式
         std::vector<std::string> tags;  // 如 "未探索"、"进行中"、"已验证"、"失败"
         int priority = 0;               // 0-10
 
@@ -59,6 +67,10 @@ namespace warroom {
         // ---- 工具节点专属 ----
         std::string tool_category;
         std::string tool_summary;
+
+        // ---- 待办 ----
+        TodoState todo_state = TodoState::None;
+        Timestamp todo_created_at;  // 标记为待办的时间，用于排序
 
         // ---- 节点模组（多模态扩展） ----
         // 主模组类型 ID（空字符串表示无主模组，节点行为同原版纯文本节点）。

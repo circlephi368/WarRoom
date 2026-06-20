@@ -18,7 +18,6 @@ namespace warroom {
         Uuid nodeId_;
         float oldWidth_, oldHeight_;
         float newWidth_, newHeight_;
-        bool executed_ = false;
     };
 
 } // namespace warroom

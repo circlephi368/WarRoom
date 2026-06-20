@@ -8,20 +8,22 @@
 #include "mod/ModManager.h"
 #include "mod/builtin/ImageMod.h"
 #include "mod/builtin/VideoMod.h"
-//#include "mod/builtin/WebMod.h"
+#include "mod/builtin/AnnotationMod.h"
+#include "mod/builtin/WebMod.h"
 
 namespace warroom {
 
-    inline void registerBuiltinMods() {
-        static bool registered = false;
-        if (registered) return;
-        registered = true;
+	inline void registerBuiltinMods() {
+		static bool registered = false;
+		if (registered) return;
+		registered = true;
 
-        ModManager::instance().registerMod(std::make_unique<ImageMod>());
-        ModManager::instance().registerMod(std::make_unique<VideoMod>());
-        //ModManager::instance().registerMod(std::make_unique<WebMod>());
-        // 后续在这里追加其它内置 mod，例如：
-        // ModManager::instance().registerMod(std::make_unique<TableMod>());
-    }
+		ModManager::instance().registerMod(std::make_unique<ImageMod>());
+		ModManager::instance().registerMod(std::make_unique<VideoMod>());
+		ModManager::instance().registerMod(std::make_unique<AnnotationMod>());
+		ModManager::instance().registerMod(std::make_unique<WebMod>());
+		// 后续在这里追加其它内置 mod，例如：
+		// ModManager::instance().registerMod(std::make_unique<TableMod>());
+	}
 
 } // namespace warroom

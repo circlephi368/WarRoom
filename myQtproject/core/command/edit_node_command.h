@@ -1,6 +1,7 @@
 #pragma once
 #include "command.h"
 #include "core/warroom/warroom_types.h"
+#include <string>
 
 namespace warroom {
 
@@ -20,7 +21,6 @@ namespace warroom {
         std::string newTitle_;
         std::string oldFullText_;
         std::string newFullText_;
-        bool executed_ = false;
     };
 
 } // namespace warroom

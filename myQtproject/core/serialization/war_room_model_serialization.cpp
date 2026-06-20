@@ -7,11 +7,17 @@
 #include "core/serialization/war_room_model_serialization.h"
 #include "core/warroom/war_room_model.h"
 #include "mod/ModManager.h"
+#include "mod/builtin/ImageMod.h"
+#include "mod/builtin/VideoMod.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <codecvt>
 #include <locale>
 #include <iostream>
+#include <QFile>
+#include <QFileInfo>
+#include <QDir>
+#include <QString>
 
 namespace warroom {
 
@@ -133,6 +139,7 @@ namespace warroom {
 		j["kind"] = nodeKindToString(node.kind);
 		j["title"] = node.title;
 		j["full_text"] = node.full_text;
+		j["text_display_mode"] = node.text_display_mode;
 
 		nlohmann::json tags = nlohmann::json::array();
 		for (const auto& tag : node.tags) {
@@ -160,6 +167,12 @@ namespace warroom {
 		j["collapsed_display"] = groupDisplayModeToString(node.collapsed_display);
 		j["tool_category"] = node.tool_category;
 		j["tool_summary"] = node.tool_summary;
+
+		// 待办字段
+		j["todo_state"] = todoStateToString(node.todo_state);
+		if (node.todo_state != TodoState::None) {
+			j["todo_created_at"] = timestampToIsoString(node.todo_created_at);
+		}
 
 		// ---- 节点模组字段 ----
 		// 主模组
@@ -200,6 +213,7 @@ namespace warroom {
 		node.kind = nodeKindFromString(j.value("kind", "leaf"));
 		node.title = j.value("title", "");
 		node.full_text = j.value("full_text", "");
+		node.text_display_mode = j.value("text_display_mode", std::string{"markdown"});
 
 		if (j.contains("tags")) {
 			for (const auto& tag : j["tags"]) {
@@ -228,6 +242,12 @@ namespace warroom {
 		node.collapsed_display = groupDisplayModeFromString(j.value("collapsed_display", "count_badge"));
 		node.tool_category = j.value("tool_category", "");
 		node.tool_summary = j.value("tool_summary", "");
+
+		// 待办字段（向后兼容：旧存档没有这些字段，默认为 None）
+		node.todo_state = todoStateFromString(j.value("todo_state", "none"));
+		if (node.todo_state != TodoState::None && j.contains("todo_created_at")) {
+			node.todo_created_at = isoStringToTimestamp(j["todo_created_at"].get<std::string>());
+		}
 
 		// ---- 节点模组字段（向后兼容：旧存档没有这些字段） ----
 		node.primary_mod_type = j.value("primary_mod_type", std::string{});
@@ -424,6 +444,7 @@ namespace warroom {
 			scout_log_.clear();
 			timeline_.clear();
 			links_by_node_.clear();
+			todo_list_.clear();
 
 			// 文档根
 			document_root_id_ = j.value("document_root_id", generateUuid());
@@ -499,6 +520,22 @@ namespace warroom {
 			// 重建所有节点的相对坐标
 			rebuildRelativeCoordinates();
 
+			// 重建待办列表：收集所有 todo_state != None 的节点
+			todo_list_.clear();
+			for (const auto& pair : nodes_) {
+				if (pair.second.todo_state != TodoState::None) {
+					todo_list_.push_back(pair.first);
+				}
+			}
+			// 按标记时间排序
+			std::sort(todo_list_.begin(), todo_list_.end(),
+				[this](const Uuid& a, const Uuid& b) {
+					const WarNode* na = getNode(a);
+					const WarNode* nb = getNode(b);
+					if (!na || !nb) return false;
+					return na->todo_created_at < nb->todo_created_at;
+				});
+
 			return true;
 		}
 		catch (const std::exception& e) {
@@ -550,6 +587,172 @@ namespace warroom {
 		nlohmann::json j;
 		file >> j;
 		return fromJson(j);
+	}
+
+	// ============================================================
+	// 文件夹存档（唯一格式）
+	// ============================================================
+	// 内部辅助：把 std::string 路径转为 QString
+	static QString qstr(const std::string& s) {
+		return QString::fromUtf8(s.c_str(), (int)s.size());
+	}
+
+	// 内部辅助：判断路径是否指向一个已存在的目录
+	static bool isDir(const QString& p) {
+		return QFileInfo(p).isDir();
+	}
+
+	// 内部辅助：递归创建目录
+	static bool mkpath(const QString& p) {
+		QDir dir(p);
+		if (dir.exists()) return true;
+		return dir.mkpath(".");
+	}
+
+	bool WarRoomModel::saveToFolder(const std::string& folder) const {
+		QString baseDir = QFileInfo(qstr(folder)).absoluteFilePath();
+		if (!mkpath(baseDir)) return false;
+
+		QString folderName = QFileInfo(baseDir).fileName();
+		QString boardFilePath = baseDir + "/" + folderName + ".warroom";
+		QString modDataRoot = baseDir + "/mod_data";
+
+		auto& mm = ModManager::instance();
+		for (const auto& pair : nodes_) {
+			const WarNode& node = pair.second;
+			if (node.primary_mod_type.empty()) continue;
+
+			NodeMod* mod = mm.getMod(node.primary_mod_type);
+			if (!mod) continue;
+
+			WarNode* mutable_node = const_cast<WarNode*>(&node);
+			QString subdir = QString::fromStdString(node.primary_mod_type);
+			mod->setArchiveBaseDir(baseDir, modDataRoot + "/" + subdir);
+
+			void* modData = mm.getPrimaryPrivate(&node);
+			QStringList extFiles = mod->collectExternalFiles(&node, modData);
+			if (extFiles.isEmpty()) continue;
+
+			QString targetDir = modDataRoot + "/" + subdir;
+			mkpath(targetDir);
+
+			QString nodeIdPrefix = QString::fromStdString(node.id);
+			for (const QString& src : extFiles) {
+				QFileInfo fi(src);
+				QString base = fi.fileName();
+				QString dst;
+
+				// 如果源文件已经在目标目录（mod_data/<modId>/）下，直接用原文件名
+				// 避免每次保存都重复添加 nodeId 前缀
+				if (fi.absolutePath() == QDir(targetDir).absolutePath()) {
+					dst = targetDir + "/" + base;
+					// 即便不复制，也确保 storedPath 是相对路径
+					QString relFromBase = QDir(baseDir).relativeFilePath(dst);
+					if (auto* imgMod = dynamic_cast<ImageMod*>(mod)) {
+						auto* pd = static_cast<ImageMod::PrivateData*>(modData);
+						if (pd) pd->storedPath = relFromBase;
+					}
+					else if (auto* vidMod = dynamic_cast<VideoMod*>(mod)) {
+						auto* pd = static_cast<VideoMod::PrivateData*>(modData);
+						if (pd) pd->storedPath = relFromBase;
+					}
+					continue;
+				}
+
+				// 外部文件：加 nodeId 前缀避免重名
+				dst = targetDir + "/" + nodeIdPrefix + "_" + base;
+
+				if (QFile::exists(dst)) QFile::remove(dst);
+				if (!QFile::copy(src, dst)) continue;
+
+				QString relFromBase = QDir(baseDir).relativeFilePath(dst);
+				if (auto* imgMod = dynamic_cast<ImageMod*>(mod)) {
+					auto* pd = static_cast<ImageMod::PrivateData*>(modData);
+					if (pd) pd->storedPath = relFromBase;
+				}
+				else if (auto* vidMod = dynamic_cast<VideoMod*>(mod)) {
+					auto* pd = static_cast<VideoMod::PrivateData*>(modData);
+					if (pd) pd->storedPath = relFromBase;
+				}
+			}
+
+			mm.saveNodeModData(mutable_node);
+		}
+
+		nlohmann::json j = toJson();
+#ifdef _WIN32
+		int size_needed = MultiByteToWideChar(CP_UTF8, 0, boardFilePath.toStdString().c_str(), (int)boardFilePath.toStdString().size(), NULL, 0);
+		std::wstring wpath(size_needed, 0);
+		std::string boardUtf8 = boardFilePath.toStdString();
+		MultiByteToWideChar(CP_UTF8, 0, boardUtf8.c_str(), (int)boardUtf8.size(), &wpath[0], size_needed);
+		std::ofstream file(wpath);
+#else
+		std::ofstream file(boardFilePath.toStdString());
+#endif
+		if (!file.is_open()) return false;
+		file << "\xEF\xBB\xBF";
+		file << j.dump(2);
+		return file.good();
+	}
+
+	bool WarRoomModel::loadFromFolder(const std::string& folder) {
+		QString baseDir = QFileInfo(qstr(folder)).absoluteFilePath();
+		if (!isDir(baseDir)) return false;
+
+		QString folderName = QFileInfo(baseDir).fileName();
+		QString boardFilePath = baseDir + "/" + folderName + ".warroom";
+		if (!QFile::exists(boardFilePath)) return false;
+
+		nlohmann::json j;
+#ifdef _WIN32
+		int size_needed = MultiByteToWideChar(CP_UTF8, 0, boardFilePath.toStdString().c_str(), (int)boardFilePath.toStdString().size(), NULL, 0);
+		std::wstring wpath(size_needed, 0);
+		std::string boardUtf8 = boardFilePath.toStdString();
+		MultiByteToWideChar(CP_UTF8, 0, boardUtf8.c_str(), (int)boardUtf8.size(), &wpath[0], size_needed);
+		std::ifstream file(wpath);
+#else
+		std::ifstream file(boardFilePath.toStdString());
+#endif
+		if (!file.is_open()) return false;
+		char bom[3];
+		file.read(bom, 3);
+		if (!(bom[0] == (char)0xEF && bom[1] == (char)0xBB && bom[2] == (char)0xBF)) {
+			file.seekg(0);
+		}
+		file >> j;
+
+		if (!fromJson(j)) return false;
+
+		auto& mm = ModManager::instance();
+		QDir baseDirObj(baseDir);
+		for (const auto& pair : nodes_) {
+			const WarNode& node = pair.second;
+			if (node.primary_mod_type.empty()) continue;
+			NodeMod* mod = mm.getMod(node.primary_mod_type);
+			if (!mod) continue;
+
+			QString subdir = QString::fromStdString(node.primary_mod_type);
+			QString modDataSubdir = baseDir + "/mod_data/" + subdir;
+			mod->setArchiveBaseDir(baseDir, modDataSubdir);
+		}
+
+		return true;
+	}
+
+	bool WarRoomModel::loadFromAuto(const std::string& path) {
+		QString p = qstr(path);
+		QFileInfo fi(p);
+		if (fi.isDir()) {
+			return loadFromFolder(path);
+		}
+		if (fi.isFile() && fi.suffix().toLower() == "warroom") {
+			QString fileBaseName = fi.completeBaseName();
+			QString parentDirName = fi.dir().dirName();
+			if (fileBaseName == parentDirName) {
+				return loadFromFolder(fi.absolutePath().toStdString());
+			}
+		}
+		return false;
 	}
 
 } // namespace warroom

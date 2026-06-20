@@ -25,6 +25,7 @@
 #include <QLibrary>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDebug>
 
 namespace warroom {
 
@@ -46,6 +47,9 @@ namespace warroom {
 			ModInfo info = mod->getInfo();
 			m_modInfo[info.id] = info;
 			m_mods[info.id] = std::move(mod);
+			auto* modPtr = m_mods[info.id].get();
+			auto bindings = modPtr->getKeyBindings();
+			KeyBindingRegistry::instance().registerBindings(bindings);
 		}
 
 		void registerMod(NodeMod* mod) {
@@ -136,6 +140,75 @@ namespace warroom {
 			}
 		}
 
+		// 给节点添加一个辅助模组（运行时初始化）
+		// 若该模组已存在则不做任何事，返回 false
+		bool addAuxiliaryMod(WarNode* node, NodeGraphicsItem* item, const std::string& modId) {
+			if (!node) return false;
+			// 检查是否已存在
+			for (const auto& t : node->auxiliary_mod_types) {
+				if (t == modId) return false;
+			}
+			if (NodeMod* mod = getMod(modId)) {
+				node->auxiliary_mod_types.push_back(modId);
+				void* data = mod->onCreateNode(node, item);
+				auto it = node->auxiliary_mod_data.find(modId);
+				if (it != node->auxiliary_mod_data.end() && data) {
+					mod->deserialize(data, it->second);
+				}
+				setNodePrivate(node->id, modId, data);
+				mod->onNodeLoaded(node, data);
+				return true;
+			}
+			return false;
+		}
+
+		// 遍历所有辅助模组，调用 shouldAutoAttach，返回 true 的自动附加
+		void autoAttachAuxiliaryMods(WarNode* node, NodeGraphicsItem* item) {
+			if (!node) return;
+			for (const std::string& modId : getAuxiliaryMods()) {
+				// 检查是否已存在
+				bool exists = false;
+				for (const auto& t : node->auxiliary_mod_types) {
+					if (t == modId) { exists = true; break; }
+				}
+				if (exists) continue;
+				if (NodeMod* mod = getMod(modId)) {
+					if (mod->shouldAutoAttach(node)) {
+						addAuxiliaryMod(node, item, modId);
+					}
+				}
+			}
+		}
+
+		// 从节点移除一个辅助模组（运行时清理）
+		bool removeAuxiliaryMod(WarNode* node, const std::string& modId) {
+			if (!node) return false;
+			bool found = false;
+			for (auto it = node->auxiliary_mod_types.begin();
+			     it != node->auxiliary_mod_types.end(); ++it) {
+				if (*it == modId) {
+					node->auxiliary_mod_types.erase(it);
+					found = true;
+					break;
+				}
+			}
+			node->auxiliary_mod_data.erase(modId);
+			// 清理私有数据（先取模组指针再持锁，避免死锁）
+			NodeMod* modPtr = getMod(modId);
+			std::lock_guard<std::mutex> lock(m_mutex);
+			auto nit = m_nodePrivates.find(node->id);
+			if (nit != m_nodePrivates.end()) {
+				auto mit = nit->second.find(modId);
+				if (mit != nit->second.end()) {
+					if (modPtr) {
+						modPtr->onDestroyNode(mit->second);
+					}
+					nit->second.erase(mit);
+				}
+			}
+			return found;
+		}
+
 		// 在保存到磁盘前调用：把模组的运行时数据回写到 WarNode 的 json 字段
 		void saveNodeModData(WarNode* node) {
 			if (!node) return;
@@ -168,17 +241,29 @@ namespace warroom {
 		}
 
 		void cleanupNodeModData(const std::string& nodeId) {
+			qDebug().nospace().noquote()
+				<< "[DESTDBG]   ModManager::cleanupNodeModData ENTER nodeId="
+				<< QString::fromStdString(nodeId);
 			std::lock_guard<std::mutex> lock(m_mutex);
 			auto it = m_nodePrivates.find(nodeId);
-			if (it == m_nodePrivates.end()) return;
-
+			if (it == m_nodePrivates.end()) {
+				qDebug() << "[DESTDBG]   ModManager::cleanupNodeModData: nodeId not found (already cleaned?)";
+				return;
+			}
+			qDebug() << "[DESTDBG]   ModManager::cleanupNodeModData: found"
+				<< it->second.size() << "mod entries to destroy";
 			for (auto& kv : it->second) {
+				qDebug().nospace().noquote()
+					<< "[DESTDBG]     -> calling onDestroyNode modId="
+					<< QString::fromStdString(kv.first)
+					<< " modData=" << static_cast<void*>(kv.second);
 				auto mit = m_mods.find(kv.first);
 				if (mit != m_mods.end() && mit->second && kv.second) {
 					mit->second->onDestroyNode(kv.second);
 				}
 			}
 			m_nodePrivates.erase(it);
+			qDebug() << "[DESTDBG]   ModManager::cleanupNodeModData EXIT nodeId erased";
 		}
 
 		// ========== 推荐尺寸 ==========
@@ -279,15 +364,29 @@ namespace warroom {
 	private:
 		ModManager() = default;
 		~ModManager() {
-			// 析构所有节点私有数据（应用退出时兜底）
+			// [DESTDBG] 单例析构入口，记录剩余的节点私有数据
+			// 正常情况下应已为空（每个 NodeGraphicsItem 析构时都调用过 cleanupNodeModData）
+			qDebug().nospace().noquote()
+				<< "[DESTDBG] >>> ~ModManager ENTER this=" << static_cast<void*>(this)
+				<< " remaining nodePrivates=" << m_nodePrivates.size()
+				<< " mods=" << m_mods.size();
 			for (auto& np : m_nodePrivates) {
+				qDebug().nospace().noquote()
+					<< "[DESTDBG]   leftover nodeId=" << QString::fromStdString(np.first)
+					<< " mods=" << np.second.size();
 				for (auto& kv : np.second) {
+					qDebug().nospace().noquote()
+						<< "[DESTDBG]     -> onDestroyNode modId="
+						<< QString::fromStdString(kv.first)
+						<< " modData=" << static_cast<void*>(kv.second);
 					auto mit = m_mods.find(kv.first);
 					if (mit != m_mods.end() && mit->second && kv.second) {
 						mit->second->onDestroyNode(kv.second);
 					}
 				}
 			}
+			qDebug().nospace().noquote()
+				<< "[DESTDBG] <<< ~ModManager EXIT this=" << static_cast<void*>(this);
 		}
 
 		void setNodePrivate(const std::string& nodeId,

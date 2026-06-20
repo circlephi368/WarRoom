@@ -14,21 +14,17 @@ namespace warroom {
     {}
 
     void EditNodeCommand::execute(WarRoomModel& model) {
-        if (executed_) return;
         WarNode* node = model.getNodeMutable(nodeId_);
-        if (node) {
-            node->title = newTitle_;
-            node->full_text = newFullText_;
-        }
-        executed_ = true;
+        if (!node) return;
+        node->title = newTitle_;
+        node->full_text = newFullText_;
     }
 
     void EditNodeCommand::undo(WarRoomModel& model) {
         WarNode* node = model.getNodeMutable(nodeId_);
-        if (node) {
-            node->title = oldTitle_;
-            node->full_text = oldFullText_;
-        }
+        if (!node) return;
+        node->title = oldTitle_;
+        node->full_text = oldFullText_;
     }
 
     std::string EditNodeCommand::description() const {

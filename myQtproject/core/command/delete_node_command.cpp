@@ -1,47 +1,135 @@
-#include "delete_node_command.h"
+#include "core/command/delete_node_command.h"
 #include "core/warroom/war_room_model.h"
 
 namespace warroom {
 
-	DeleteNodeCommand::DeleteNodeCommand(const Uuid& nodeId,
-		const WarNode& savedNode,
-		const Uuid& parentId,
-		int index)
-		: nodeId_(nodeId)
-		, savedNode_(savedNode)
-		, parentId_(parentId)
-		, index_(index)
-	{}
+    DeleteNodeCommand::DeleteNodeCommand(const Uuid& nodeId)
+        : nodeId_(nodeId)
+    {}
 
-	void DeleteNodeCommand::execute(WarRoomModel& model) {
-		if (executed_) return;
-		model.removeNode(nodeId_, true);
-		executed_ = true;
-	}
+    NodeLinkSnapshot::AnchorSnap DeleteNodeCommand::captureAnchor(const Anchor* a) {
+        NodeLinkSnapshot::AnchorSnap s;
+        if (!a) return s;
+        s.type = (a->anchor_type == AnchorType::Node)
+            ? NodeLinkSnapshot::AnchorType::Node
+            : NodeLinkSnapshot::AnchorType::Free;
+        if (s.type == NodeLinkSnapshot::AnchorType::Node) {
+            if (auto* na = dynamic_cast<const NodeAnchor*>(a)) {
+                s.node_id = na->node_id;
+                s.offset_x = na->offset_x;
+                s.offset_y = na->offset_y;
+                s.edge = na->edge;
+            }
+        } else {
+            if (auto* fa = dynamic_cast<const FreeAnchor*>(a)) {
+                s.x = fa->x;
+                s.y = fa->y;
+            }
+        }
+        return s;
+    }
 
-	void DeleteNodeCommand::undo(WarRoomModel& model) {
-		// 恢复节点
-		warroom::Uuid newId = model.addNode(savedNode_, parentId_, index_);
+    std::unique_ptr<Anchor> DeleteNodeCommand::restoreAnchor(const NodeLinkSnapshot::AnchorSnap& s) {
+        if (s.type == NodeLinkSnapshot::AnchorType::Node) {
+            return std::make_unique<NodeAnchor>(s.node_id, s.offset_x, s.offset_y, s.edge);
+        } else {
+            return std::make_unique<FreeAnchor>(s.x, s.y);
+        }
+    }
 
-		// 注意：addNode 内部会根据 savedNode_.id 添加，不会生成新 id
-		// 但需要确保子节点关系正确
-		if (!savedNode_.children_ids.empty()) {
-			warroom::WarNode* restoredNode = model.getNodeMutable(savedNode_.id);
-			if (restoredNode) {
-				// 恢复子节点关系
-				for (const auto& childId : savedNode_.children_ids) {
-					warroom::WarNode* child = model.getNodeMutable(childId);
-					if (child && child->parent_id != savedNode_.id) {
-						child->parent_id = savedNode_.id;
-						restoredNode->children_ids.push_back(childId);
-					}
-				}
-			}
-		}
-	}
+    void DeleteNodeCommand::execute(WarRoomModel& model) {
+        // 首次执行时捕获节点快照（包含子节点列表、颜色、位置、模组数据等）
+        // 以及与该节点关联的所有连线快照
+        if (!captured_) {
+            const WarNode* node = model.getNode(nodeId_);
+            if (!node) return; // 节点不存在，无法删除
+            savedNode_ = *node;
+            parentId_ = node->parent_id;
 
-	std::string DeleteNodeCommand::description() const {
-		return "删除节点: " + savedNode_.title;
-	}
+            // 记录该节点在父节点 children_ids 中的位置
+            index_ = -1;
+            const WarNode* parent = model.getNode(parentId_);
+            if (parent) {
+                for (size_t i = 0; i < parent->children_ids.size(); ++i) {
+                    if (parent->children_ids[i] == nodeId_) {
+                        index_ = static_cast<int>(i);
+                        break;
+                    }
+                }
+            }
+
+            // 捕获与该节点关联的所有连线快照（removeNode 会删除这些连线）
+            auto allLinks = model.getLinksForNode(nodeId_);
+            for (const auto& linkId : allLinks) {
+                const WarLink* link = model.getLink(linkId);
+                if (!link) continue;
+                NodeLinkSnapshot snap;
+                snap.linkId = linkId;
+                snap.startAnchor = captureAnchor(link->start_anchor.get());
+                snap.endAnchor = captureAnchor(link->end_anchor.get());
+                for (const auto& wp : link->waypoints) {
+                    snap.waypoints.push_back(captureAnchor(wp.get()));
+                }
+                snap.type = link->type;
+                snap.label = link->label;
+                snap.color = link->color;
+                savedLinks_.push_back(std::move(snap));
+            }
+
+            captured_ = true;
+        }
+
+        // 删除节点：不把它的子节点提升到根节点，保持结构一致
+        model.removeNode(nodeId_, false);
+    }
+
+    void DeleteNodeCommand::undo(WarRoomModel& model) {
+        if (!captured_) return;
+
+        // 1. 恢复节点（使用快照的完整数据，包括子节点列表、颜色、位置等）
+        WarNode copy = savedNode_;
+        model.addNode(std::move(copy), parentId_, index_);
+
+        // 2. 恢复与该节点关联的所有连线
+        for (const auto& linkSnap : savedLinks_) {
+            // 检查节点引用是否都存在：只有当两端节点（对于 NodeAnchor）都存在时才恢复
+            // 实际上，我们是在删除节点的 undo，节点已经恢复。但有些连线可能连接到
+            // 其他节点（外部节点），这些节点应该仍然存在。
+            // 安全检查：如果两端的节点锚点对应的节点不存在，就不恢复这条连线
+            bool nodesValid = true;
+            if (linkSnap.startAnchor.type == NodeLinkSnapshot::AnchorType::Node) {
+                if (!model.getNode(linkSnap.startAnchor.node_id)) nodesValid = false;
+            }
+            if (linkSnap.endAnchor.type == NodeLinkSnapshot::AnchorType::Node) {
+                if (!model.getNode(linkSnap.endAnchor.node_id)) nodesValid = false;
+            }
+            for (const auto& wp : linkSnap.waypoints) {
+                if (wp.type == NodeLinkSnapshot::AnchorType::Node) {
+                    if (!model.getNode(wp.node_id)) {
+                        nodesValid = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!nodesValid) continue;
+
+            WarLink link;
+            link.id = linkSnap.linkId;
+            link.start_anchor = restoreAnchor(linkSnap.startAnchor);
+            link.end_anchor = restoreAnchor(linkSnap.endAnchor);
+            link.type = linkSnap.type;
+            link.label = linkSnap.label;
+            link.color = linkSnap.color;
+            for (const auto& wp : linkSnap.waypoints) {
+                link.waypoints.push_back(restoreAnchor(wp));
+            }
+            model.addLink(std::move(link));
+        }
+    }
+
+    std::string DeleteNodeCommand::description() const {
+        return "删除节点: " + savedNode_.title;
+    }
 
 } // namespace warroom

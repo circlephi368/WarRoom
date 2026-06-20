@@ -12,9 +12,7 @@ namespace warroom {
     {}
 
     void ResizeNodeCommand::execute(WarRoomModel& model) {
-        if (executed_) return;
         model.setNodesize(nodeId_, newWidth_, newHeight_);
-        executed_ = true;
     }
 
     void ResizeNodeCommand::undo(WarRoomModel& model) {
@@ -25,4 +23,4 @@ namespace warroom {
         return "调整节点大小";
     }
 
-}
+} // namespace warroom

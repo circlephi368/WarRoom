@@ -107,4 +107,24 @@ namespace warroom {
         return (it != map.end()) ? it->second : ScoutResult::Success;
     }
 
+    // ---- TodoState 序列化 ----
+    inline std::string todoStateToString(TodoState state) {
+        switch (state) {
+        case TodoState::None:    return "none";
+        case TodoState::Pending: return "pending";
+        case TodoState::Done:    return "done";
+        }
+        return "none";
+    }
+
+    inline TodoState todoStateFromString(const std::string& str) {
+        static const std::unordered_map<std::string, TodoState> map = {
+            {"none", TodoState::None},
+            {"pending", TodoState::Pending},
+            {"done", TodoState::Done}
+        };
+        auto it = map.find(str);
+        return (it != map.end()) ? it->second : TodoState::None;
+    }
+
 } // namespace warroom

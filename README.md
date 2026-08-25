@@ -41,7 +41,7 @@
 - **模组能力**：自定义渲染、右键菜单扩展、拖放支持、键盘/鼠标事件拦截、嵌入 Widget、存档资源打包
 - **主/辅模组**：每个节点绑定一个主模组，可叠加多个辅助模组
 
-完整模组开发指南：[`mod/MOD_DEVELOPMENT_GUIDE.txt`](mod/MOD_DEVELOPMENT_GUIDE.txt)
+完整模组开发指南：[`mod/MOD_DEVELOPMENT_GUIDE.txt`](WarRoom/mod/MOD_DEVELOPMENT_GUIDE.txt)
 
 ### ⚡ 操作与编辑
 - **完整的 Undo/Redo**：所有节点/连线操作均支持撤销重做（命令模式实现）
@@ -76,7 +76,7 @@
 .
 ├── main.cpp                      # 入口
 ├── WarRoom.rc                    # 资源（图标）
-├── myQtproject.vcxproj           # Visual Studio 工程
+├── WarRoom.vcxproj               # Visual Studio 工程
 ├── myQtproject.qrc               # Qt 资源
 ├── myQtproject.ui                # UI 布局
 ├── resource.h
@@ -157,7 +157,7 @@
 
 ### 构建步骤
 1. 确保已安装 Qt Visual Studio Tools 扩展，或正确配置了 Qt 头文件和库路径
-2. 打开 [myQtproject.vcxproj](myQtproject.vcxproj)
+2. 打开 [WarRoom.vcxproj](WarRoom/WarRoom.vcxproj)
 3. 检查项目属性 → Qt 安装路径，指向本地 Qt6 路径
 4. 选择 Release | x64 配置
 5. 点击生成
@@ -184,7 +184,7 @@ MIT License. 参见 `LICENSE` 文件。
 
 ## 开发扩展
 
-- 想要自定义节点模组？请阅读 [`mod/MOD_DEVELOPMENT_GUIDE.txt`](mod/MOD_DEVELOPMENT_GUIDE.txt)
+- 想要自定义节点模组？请阅读 [`mod/MOD_DEVELOPMENT_GUIDE.txt`](WarRoom/mod/MOD_DEVELOPMENT_GUIDE.txt)
 - 想要修改/新增 Undo/Redo 命令？参考 `core/command/` 目录下的现有命令模式
 - 想要新增连线类型？在 `core/warroom/war_link.h` 的 `LinkType` 枚举中添加，并更新 UI 渲染
 

@@ -2,5 +2,5 @@
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
-  <Project Path="myQtproject/myQtproject.vcxproj" Id="79d52af0-21e8-42da-b63e-01ab996308e8" />
+  <Project Path="WarRoom/WarRoom.vcxproj" Id="79d52af0-21e8-42da-b63e-01ab996308e8" />
 </Solution>

@@ -25,7 +25,7 @@
 #include <cmath>
 #include "core/warroom/war_room_model.h"
 #include "mod/ModManager.h"
-#include "CameraAnimator.h";
+#include "CameraAnimator.h"
 
 class WarRoomView : public QGraphicsView
 {
@@ -320,6 +320,8 @@ signals:
 	void dropToCreateNode(QPointF scenePos, const QMimeData* mimeData);
 	// 用户开始拖动画布（中键或空格+左键），用于中止相机动画
 	void userPanStarted();
+	// 视图失去焦点
+	void viewFocusLost();
 
 protected:
 	void wheelEvent(QWheelEvent* event) override
@@ -514,6 +516,7 @@ protected:
 			setCursor(Qt::ArrowCursor);
 		}
 
+		emit viewFocusLost();
 		QGraphicsView::focusOutEvent(event);
 	}
 

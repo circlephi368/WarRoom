@@ -43,6 +43,7 @@
 #include "core/command/move_node_command.h"
 #include "core/command/resize_node_command.h"
 #include "core/command/set_node_color_command.h"
+#include "core/command/set_link_label_command.h"
 
 // 项目 UI
 #include "ui/LinkCreationManager.h"
@@ -133,6 +134,15 @@ WarRoomMainWindow::WarRoomMainWindow(QWidget* parent)
 	m_highlightOverlay = new HighlightOverlay(m_centralContainer);
 	m_highlightOverlay->show();
 	m_highlightOverlay->raise();
+
+	// 将视图传递给 HighlightOverlay（必须在 m_view 创建后）
+	if (m_view) {
+		m_highlightOverlay->setView(m_view);
+	}
+
+	// 初始化焦点指示器
+	m_highlightOverlay->setFocusState(FocusState::CanvasFocus);
+	updateCanvasAreaForOverlay();
 
 	// 用户拖动/滚轮时中止相机动画
 	connect(m_view, &WarRoomView::userPanStarted,
@@ -268,8 +278,7 @@ void WarRoomMainWindow::createLinkBetweenNodes(const std::string& fromId, int fr
 	const warroom::WarLink* createdLink = m_model.getLink(newLinkId);
 	if (createdLink) {
 		auto* linkItem = new LinkGraphicsItem(newLinkId, &m_model);
-		connect(linkItem, &LinkGraphicsItem::deletionRequested,
-			this, &WarRoomMainWindow::deleteLink);
+		setupLinkItemConnections(linkItem);
 		m_scene->addItem(linkItem);
 	}
 }
@@ -284,6 +293,72 @@ void WarRoomMainWindow::deleteLink(const warroom::Uuid& linkId)
 	// 使用新的 DeleteLinkCommand：构造时只需 linkId，命令内部会自动捕获快照
 	auto cmd = std::make_unique<warroom::DeleteLinkCommand>(linkId);
 	executeCommand(std::move(cmd));
+}
+
+void WarRoomMainWindow::onLinkLabelEditRequested(const warroom::Uuid& linkId)
+{
+	if (m_model.isReadOnly()) return;
+
+	// 找到对应的 LinkGraphicsItem
+	for (auto* item : m_scene->items()) {
+		if (auto* linkItem = dynamic_cast<LinkGraphicsItem*>(item)) {
+			if (linkItem->linkId() == linkId) {
+				QString newLabel = linkItem->pendingLabel();
+				linkItem->clearPendingLabel();
+
+				qDebug() << "[LINKDBG] onLinkLabelEditRequested:"
+					<< "linkId=" << QString::fromStdString(linkId)
+					<< "newLabel=" << newLabel;
+
+				// 使用 SetLinkLabelCommand 支持 undo/redo
+				auto cmd = std::make_unique<warroom::SetLinkLabelCommand>(
+					linkId, newLabel.toStdString());
+				executeCommand(std::move(cmd));
+
+				//// 验证模型已更新
+				//const warroom::WarLink* link = m_model.getLink(linkId);
+				//if (link) {
+				//	qDebug() << "[LINKDBG] link->label after command:"
+				//		<< QString::fromStdString(link->label);
+				//}
+
+				// 刷新连线显示
+				//linkItem->prepareGeometryChange();
+				linkItem->update();
+				break;
+			}
+		}
+	}
+}
+
+void WarRoomMainWindow::onLinkColorChangeRequested(const warroom::Uuid& linkId, const QString& newColor)
+{
+	if (m_model.isReadOnly()) return;
+
+	// 直接修改颜色（后续可改为 command 支持 undo/redo）
+	warroom::WarLink* link = m_model.getLinkMutable(linkId);
+	if (link) {
+		link->color = newColor.toStdString();
+
+		// 刷新所有连线（因为共享颜色缓存）
+		for (auto* item : m_scene->items()) {
+			if (auto* linkItem = dynamic_cast<LinkGraphicsItem*>(item)) {
+				linkItem->update();
+			}
+		}
+	}
+}
+
+void WarRoomMainWindow::setupLinkItemConnections(LinkGraphicsItem* linkItem)
+{
+	if (!linkItem) return;
+
+	connect(linkItem, &LinkGraphicsItem::deletionRequested,
+		this, &WarRoomMainWindow::deleteLink);
+	connect(linkItem, &LinkGraphicsItem::labelEditRequested,
+		this, &WarRoomMainWindow::onLinkLabelEditRequested);
+	connect(linkItem, &LinkGraphicsItem::colorChangeRequested,
+		this, &WarRoomMainWindow::onLinkColorChangeRequested);
 }
 
 void WarRoomMainWindow::createNodeAndLink(const std::string& fromId, int fromEdge, QPointF scenePos)
@@ -322,8 +397,7 @@ void WarRoomMainWindow::createNodeAndLink(const std::string& fromId, int fromEdg
 	const warroom::WarLink* createdLink = m_model.getLink(newLinkId);
 	if (createdLink) {
 		auto* linkItem = new LinkGraphicsItem(newLinkId, &m_model);
-		connect(linkItem, &LinkGraphicsItem::deletionRequested,
-			this, &WarRoomMainWindow::deleteLink);
+		setupLinkItemConnections(linkItem);
 		m_scene->addItem(linkItem);
 	}
 
@@ -619,6 +693,12 @@ void WarRoomMainWindow::onNodeSelectedForZBoost(const std::string& nodeId)
 		warroom::Uuid(nodeId));
 	m_model.setMaxAbsZ(subtreeMax);
 
+	// 更新焦点指示器
+	auto* item = m_nodeItems.value(QString::fromStdString(nodeId));
+	if (item) {
+		updateFocusOnNode(item);
+	}
+
 	// 如果超过阈值，触发归一化
 	if (m_model.getMaxAbsZ() > 1000000) {
 		m_model.normalizeZValues();
@@ -627,6 +707,41 @@ void WarRoomMainWindow::onNodeSelectedForZBoost(const std::string& nodeId)
 		refreshAllLinksZValue();
 		refreshLinks();
 	}
+}
+
+// ============================================================================
+// 焦点指示器更新
+// ============================================================================
+
+void WarRoomMainWindow::updateFocusOnNode(NodeGraphicsItem* item)
+{
+	if (!m_highlightOverlay || !item || !m_view) return;
+	m_highlightOverlay->setFocusState(FocusState::NodeFocus, item);
+	updateCanvasAreaForOverlay();
+}
+
+void WarRoomMainWindow::updateFocusOnCanvas()
+{
+	if (!m_highlightOverlay) return;
+	m_highlightOverlay->setFocusState(FocusState::CanvasFocus);
+	updateCanvasAreaForOverlay();
+}
+
+void WarRoomMainWindow::updateFocusNoFocus(const QString& reason)
+{
+	if (!m_highlightOverlay) return;
+	m_highlightOverlay->setFocusState(FocusState::NoFocus);
+	m_highlightOverlay->setExternalFocusName(reason);
+}
+
+void WarRoomMainWindow::updateCanvasAreaForOverlay()
+{
+	if (!m_highlightOverlay || !m_view) return;
+
+	QRect viewRect = m_view->rect();
+	QPoint tl = m_view->mapTo(m_highlightOverlay->parentWidget(), viewRect.topLeft());
+	QPoint br = m_view->mapTo(m_highlightOverlay->parentWidget(), viewRect.bottomRight());
+	m_highlightOverlay->setCanvasArea(QRect(tl, br).normalized());
 }
 
 // ============================================================================
@@ -668,6 +783,13 @@ void WarRoomMainWindow::setupScene()
 	connect(m_view, &WarRoomView::dropToCreateNode,
 		this, &WarRoomMainWindow::addNodeFromDrop);
 
+	// 视图失去焦点时更新焦点指示器
+	connect(m_view, &WarRoomView::viewFocusLost, this, [this]() {
+		if (m_highlightOverlay) {
+			updateFocusNoFocus(tr("画布"));
+		}
+	});
+
 	// 确保画布区域的布局正确添加视图
 	if (m_canvasArea->layout()) {
 		m_canvasArea->layout()->addWidget(m_view);
@@ -695,8 +817,7 @@ void WarRoomMainWindow::populateFromModel()
 	// ---- 从模型读取连线，创建 LinkGraphicsItem ----
 	for (const auto& [linkId, link] : m_model.getAllLinks()) {
 		auto* linkItem = new LinkGraphicsItem(linkId, &m_model);
-		connect(linkItem, &LinkGraphicsItem::deletionRequested,
-			this, &WarRoomMainWindow::deleteLink);
+		setupLinkItemConnections(linkItem);
 		m_scene->addItem(linkItem);
 	}
 
@@ -760,8 +881,7 @@ void WarRoomMainWindow::rebuildFromModel()
 	// 添加连线图形项
 	for (const auto& [linkId, link] : m_model.getAllLinks()) {
 		auto* linkItem = new LinkGraphicsItem(linkId, &m_model);
-		connect(linkItem, &LinkGraphicsItem::deletionRequested,
-			this, &WarRoomMainWindow::deleteLink);
+		setupLinkItemConnections(linkItem);
 		m_scene->addItem(linkItem);
 	}
 
@@ -1937,6 +2057,16 @@ bool WarRoomMainWindow::eventFilter(QObject* watched, QEvent* event)
 				}
 			}
 		}
+
+		// 更新焦点指示器
+		if (!clickedNodeId.empty()) {
+			auto* item = m_nodeItems.value(QString::fromStdString(clickedNodeId));
+			if (item) {
+				updateFocusOnNode(item);
+			}
+		} else {
+			updateFocusOnCanvas();
+		}
 	}
 
 	return QMainWindow::eventFilter(watched, event);
@@ -2323,6 +2453,25 @@ void WarRoomMainWindow::showEvent(QShowEvent* event)
 		// 首次显示时刷新侧栏（构造函数中的刷新可能因 widget 未显示而无效）
 		refreshSidebarTree();
 		refreshTodoSidebar();
+
+		// 首次显示时更新 overlay 的画布区域并触发重绘
+		if (m_highlightOverlay) {
+			m_highlightOverlay->syncGeometry();
+			updateCanvasAreaForOverlay();
+			m_highlightOverlay->setFocusState(FocusState::CanvasFocus);
+		}
+	}
+}
+
+void WarRoomMainWindow::resizeEvent(QResizeEvent* event)
+{
+	QMainWindow::resizeEvent(event);
+
+	// 窗口大小变化时更新 overlay
+	if (m_highlightOverlay) {
+		m_highlightOverlay->syncGeometry();
+		updateCanvasAreaForOverlay();
+		m_highlightOverlay->update();
 	}
 }
 

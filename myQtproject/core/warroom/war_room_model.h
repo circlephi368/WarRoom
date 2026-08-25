@@ -96,26 +96,26 @@ namespace warroom {
 		// 获取所有待办节点 ID（按添加时间排序）
 		const std::vector<Uuid>& getTodoList() const { return todo_list_; }
 		// ---- 序列化 ----
-        nlohmann::json toJson() const;
-        bool fromJson(const nlohmann::json& j);
-        bool saveToFile(const std::string& filepath) const;
-        bool loadFromFile(const std::string& filepath);
+		nlohmann::json toJson() const;
+		bool fromJson(const nlohmann::json& j);
+		bool saveToFile(const std::string& filepath) const;
+		bool loadFromFile(const std::string& filepath);
 
-        // ---- 文件夹存档 ----
-        // 把整个白板保存到 <folder> 目录：
-        //   <folder>/board.json       ← 与旧 .warroom 同样的 JSON
-        //   <folder>/mod_data/<modId>/ ← 模组资源（图片、视频等）
-        // 若 folder 指向 .warroom 单文件（已存在），会被视为已存在的存档目录并直接写入。
-        // folder 不存在时自动创建。
-        bool saveToFolder(const std::string& folder) const;
+		// ---- 文件夹存档 ----
+		// 把整个白板保存到 <folder> 目录：
+		//   <folder>/board.json       ← 与旧 .warroom 同样的 JSON
+		//   <folder>/mod_data/<modId>/ ← 模组资源（图片、视频等）
+		// 若 folder 指向 .warroom 单文件（已存在），会被视为已存在的存档目录并直接写入。
+		// folder 不存在时自动创建。
+		bool saveToFolder(const std::string& folder) const;
 
-        // 从一个存档目录加载：
-        //   读取 <folder>/board.json
-        //   告知所有主模组"基础目录 = <folder>"，使其能解析 mod_data/ 下的相对路径
-        bool loadFromFolder(const std::string& folder);
+		// 从一个存档目录加载：
+		//   读取 <folder>/board.json
+		//   告知所有主模组"基础目录 = <folder>"，使其能解析 mod_data/ 下的相对路径
+		bool loadFromFolder(const std::string& folder);
 
-        // 从任意路径加载（自动识别是 .warroom 单文件还是 .warroom/ 目录）
-        bool loadFromAuto(const std::string& path);
+		// 从任意路径加载（自动识别是 .warroom 单文件还是 .warroom/ 目录）
+		bool loadFromAuto(const std::string& path);
 
 		// 获取视图状态（用于保存/恢复）
 		void setCameraView(const Point2D& pos, float zoom) {

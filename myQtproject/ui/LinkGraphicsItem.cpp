@@ -5,6 +5,8 @@
 #include <QMenu>
 #include <QGraphicsScene>
 #include <qgraphicsview.h>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <cmath>
 
 // ---------------------------------------------------------------------------
@@ -155,13 +157,30 @@ void LinkGraphicsItem::paint(QPainter* painter,
 	// ----- 标签 -----
 	if (!link->label.empty()) {
 		QPointF mid = path.pointAtPercent(0.5);
-		painter->setPen(QColor("#333333"));
 		// 使用全局节点字体，但字号固定为 9
 		QFont labelFont = WarRoomMainWindow::getNodeFont();
 		labelFont.setPointSize(9);
 		painter->setFont(labelFont);
-		painter->drawText(mid + QPointF(5, -5),
-			QString::fromStdString(link->label));
+
+		// 计算文字边界，添加背景矩形
+		QString labelText = QString::fromStdString(link->label);
+		QFontMetrics fm(labelFont);
+		QRect textRect = fm.boundingRect(labelText);
+		// 文字中心点，偏移调整
+		QPointF textPos = mid + QPointF(5, -5);
+		// 计算背景矩形（比文字稍大，居中对齐）
+		qreal padding = 4.0;
+		QRectF bgRect(textPos.x() - padding, textPos.y() - fm.ascent() - padding / 2,
+			textRect.width() + padding * 2, textRect.height() + padding);
+
+		// 绘制半透明白色背景矩形
+		painter->setPen(Qt::NoPen);
+		painter->setBrush(QColor(255, 255, 255, 200));  // 半透明白色
+		painter->drawRoundedRect(bgRect, 3, 3);
+
+		// 绘制黑色文字
+		painter->setPen(QColor(30, 30, 30));
+		painter->drawText(textPos, labelText);
 	}
 }
 
@@ -303,8 +322,61 @@ void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
 {
 	QMenu menu;
 
-	// 删除连线选项
+	// ---- 应用深色扁平样式（与节点右键菜单一致）----
+	menu.setStyleSheet(R"(
+		QMenu {
+			background-color: #2D2D2D;
+			border: 1px solid #3A3A3A;
+			border-radius: 4px;
+			padding: 4px 0px;
+		}
+		QMenu::item {
+			background-color: transparent;
+			color: #CCCCCC;
+			padding: 6px 28px 6px 20px;
+			border: none;
+			margin: 0px 4px;
+			border-radius: 2px;
+		}
+		QMenu::item:selected {
+			background-color: #4A4A4A;
+			color: #FFFFFF;
+		}
+		QMenu::item:pressed {
+			background-color: #3A6A9A;
+			color: #FFFFFF;
+		}
+		QMenu::separator {
+			height: 1px;
+			background-color: #3A3A3A;
+			margin: 4px 8px;
+		}
+	)");
+
+	// ---- 获取当前连线的 label ----
+	QString currentLabel;
+	if (m_model) {
+		const warroom::WarLink* link = m_model->getLink(m_linkId);
+		if (link) {
+			currentLabel = QString::fromStdString(link->label);
+		}
+	}
+
+	// ---- 编辑文字 ----
+	QAction* editLabelAction = menu.addAction("编辑连线文字…");
+
+	// ---- 如果有文字，显示清除文字选项 ----
+	QAction* clearLabelAction = nullptr;
+	if (!currentLabel.isEmpty()) {
+		clearLabelAction = menu.addAction("清除连线文字");
+	}
+
+	menu.addSeparator();
+
+	// ---- 删除连线 ----
 	QAction* deleteAction = menu.addAction("删除连线");
+
+	menu.addSeparator();
 
 	// ========== 颜色子菜单 ==========
 	QMenu* colorMenu = menu.addMenu("修改颜色");
@@ -328,20 +400,27 @@ void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
 
 	for (const auto& preset : presets) {
 		colorMenu->addAction(preset.name, [this, preset]() {
-			if (!m_model) return;
-			warroom::WarLink* link = m_model->getLinkMutable(m_linkId);
-			if (link) {
-				link->color = preset.hexColor;
-				update();
-			}
+			emit colorChangeRequested(m_linkId, QString::fromLatin1(preset.hexColor));
 			});
 	}
 
 	QAction* selectedAction = menu.exec(event->screenPos());
 
 	if (selectedAction == deleteAction) {
-		// 通过信号请求外部删除，避免裸指针访问
 		emit deletionRequested(m_linkId);
+	} else if (selectedAction == editLabelAction) {
+		bool ok = false;
+		QString text = QInputDialog::getText(nullptr, "编辑连线文字",
+			"连线文字：", QLineEdit::Normal, currentLabel, &ok);
+		if (ok) {
+			// 先保存新文字，再发射信号（同步信号会立即触发槽函数）
+			m_pendingLabel = text;
+			emit labelEditRequested(m_linkId);
+		}
+	} else if (clearLabelAction && selectedAction == clearLabelAction) {
+		// 先保存空字符串，再发射信号
+		m_pendingLabel.clear();
+		emit labelEditRequested(m_linkId);
 	}
 }
 

@@ -57,9 +57,18 @@ public:
 	// 刷新连线默认颜色（全局连线颜色配置变更时调用）
 	void refreshLinkColor(const QColor& color);
 
+	// ---- 待处理的标签变更 ----
+	// 获取待处理的新标签文本（用于 labelEditRequested 信号后获取新值）
+	QString pendingLabel() const { return m_pendingLabel; }
+	void clearPendingLabel() { m_pendingLabel.clear(); }
+
 signals:
 	// 请求删除此连线（由外部如 WarRoomMainWindow 响应）
 	void deletionRequested(const warroom::Uuid& linkId);
+	// 请求修改连线文字
+	void labelEditRequested(const warroom::Uuid& linkId);
+	// 请求修改连线颜色
+	void colorChangeRequested(const warroom::Uuid& linkId, const QString& newColor);
 
 private:
 	// ---- 颜色映射 ----
@@ -101,4 +110,7 @@ private:
 
 	// 全局连线默认颜色缓存（由 refreshLinkColor 设置）
 	QColor m_globalLinkColor{ 150, 150, 150 };
+
+	// 待处理的标签文本（在 contextMenuEvent 中设置，由 WarRoomMainWindow 消费）
+	QString m_pendingLabel;
 };

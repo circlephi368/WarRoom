@@ -5,27 +5,27 @@
 
 namespace warroom {
 
-    class Command;
-    class WarRoomModel;
+	class Command;
+	class WarRoomModel;
 
-    class UndoManager {
-    public:
-        explicit UndoManager(int maxDepth = 1000);
+	class UndoManager {
+	public:
+		explicit UndoManager(int maxDepth = 1000);
 
-        void executeCommand(std::unique_ptr<Command> cmd, WarRoomModel& model);
-        bool undo(WarRoomModel& model);
-        bool redo(WarRoomModel& model);
-        void clear();
+		void executeCommand(std::unique_ptr<Command> cmd, WarRoomModel& model);
+		bool undo(WarRoomModel& model);
+		bool redo(WarRoomModel& model);
+		void clear();
 
-        bool canUndo() const;
-        bool canRedo() const;
-        std::string undoDescription() const;
-        std::string redoDescription() const;
+		bool canUndo() const;
+		bool canRedo() const;
+		std::string undoDescription() const;
+		std::string redoDescription() const;
 
-    private:
-        std::vector<std::unique_ptr<Command>> undoStack_;
-        std::vector<std::unique_ptr<Command>> redoStack_;
-        int maxDepth_;
-    };
+	private:
+		std::vector<std::unique_ptr<Command>> undoStack_;
+		std::vector<std::unique_ptr<Command>> redoStack_;
+		int maxDepth_;
+	};
 
 } // namespace warroom

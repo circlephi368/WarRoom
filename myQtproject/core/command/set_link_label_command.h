@@ -5,22 +5,20 @@
 
 namespace warroom {
 
-	class EditNodeCommand : public Command {
+	// 修改连接线文字的命令
+	class SetLinkLabelCommand : public Command {
 	public:
-		EditNodeCommand(Uuid nodeId,
-			std::string oldTitle, std::string newTitle,
-			std::string oldFullText, std::string newFullText);
+		SetLinkLabelCommand(Uuid linkId, std::string newLabel);
 
 		void execute(WarRoomModel& model) override;
 		void undo(WarRoomModel& model) override;
 		std::string description() const override;
 
 	private:
-		Uuid nodeId_;
-		std::string oldTitle_;
-		std::string newTitle_;
-		std::string oldFullText_;
-		std::string newFullText_;
+		Uuid linkId_;
+		std::string oldLabel_; // 首次执行时从模型读取
+		std::string newLabel_;
+		bool captured_ = false;
 	};
 
 } // namespace warroom

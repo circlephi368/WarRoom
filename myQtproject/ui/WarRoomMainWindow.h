@@ -13,6 +13,7 @@
 #include <qwidget.h>
 #include <qfont.h>
 #include <qcolor.h>
+#include <QResizeEvent>
 
 // 项目核心
 #include "core/command/undo_manager.h"
@@ -23,6 +24,7 @@
 // 项目 UI
 #include "ui_myQtproject.h"
 #include "warroomview.h"
+#include "HighlightOverlay.h"
 #include "ui/CustomTitleBar.h"
 #include "ui/CustomSidebar.h"
 #include "ui/TodoSidebar.h"
@@ -34,7 +36,7 @@ class QGraphicsView;
 class QPushButton;
 class NodeGraphicsItem;
 class CameraAnimator;
-class HighlightOverlay;
+class LinkGraphicsItem;
 
 // 节点上下文信息（用于删除撤销）
 struct NodeContext {
@@ -55,6 +57,9 @@ public:
 
 	// 连线操作
 	void deleteLink(const warroom::Uuid& linkId);
+	void onLinkLabelEditRequested(const warroom::Uuid& linkId);
+	void onLinkColorChangeRequested(const warroom::Uuid& linkId, const QString& newColor);
+	void setupLinkItemConnections(LinkGraphicsItem* linkItem);
 	void createLinkBetweenNodes(const std::string& fromId, int fromEdge,
 		const std::string& toId, int toEdge);
 	// 拖拽锚点到空白处：创建新节点并自动连线
@@ -138,8 +143,14 @@ private slots:
 	// 视图操作
 	void onResetView();         // 重置视图
 
-	// 节点操作
+	// ---- 节点操作
 	void onNodeSelectedForZBoost(const std::string& nodeId);  // 提升节点 Z 值
+
+	// ---- 焦点指示器更新 ----
+	void updateFocusOnNode(NodeGraphicsItem* item);
+	void updateFocusOnCanvas();
+	void updateFocusNoFocus(const QString& reason);
+	void updateCanvasAreaForOverlay();
 
 	// 帮助
 	void onAbout();             // 关于
@@ -327,4 +338,5 @@ protected:
 	void onToggleTodoSidebar();
 
 	void showEvent(QShowEvent* event) override;
+	void resizeEvent(QResizeEvent* event) override;
 };

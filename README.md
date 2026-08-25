@@ -2,7 +2,7 @@
 
 > 一款基于 Qt6 的无限画布战略节点管理工具，用于整理复杂的逻辑关系、思维地图和战略规划。
 
-![App Icon](resources/app_icon_128.png)
+![App Icon](WarRoom/resources/app_icon_128.png)
 
 ## 特性
 

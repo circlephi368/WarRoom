@@ -14,6 +14,7 @@
 #include <qfont.h>
 #include <qcolor.h>
 #include <QResizeEvent>
+#include <QStringList>
 
 // 项目核心
 #include "core/command/undo_manager.h"
@@ -34,6 +35,9 @@
 class QGraphicsScene;
 class QGraphicsView;
 class QPushButton;
+class QMenu;
+class QLabel;
+class QTimer;
 class NodeGraphicsItem;
 class CameraAnimator;
 class LinkGraphicsItem;
@@ -46,11 +50,28 @@ struct NodeContext {
 	int index;
 };
 
+// 当前文档统计信息（用于"当前文档统计数据"对话框）
+struct DocumentStats {
+	int     nodeCount = 0;      // 总节点数（不含文档根）
+	int     charCount = 0;      // 总字数（full_text 字符数，含空格/Markdown 符号）
+	qint64  fileSize  = 0;      // 存档体积（字节，未保存=0）
+	QString fileName;           // 存档文件名（未命名时"未命名"）
+	QString filePath;           // 完整路径（未命名时空串）
+};
+
 class WarRoomMainWindow : public QMainWindow
 {
 	Q_OBJECT
 
 public:
+	// 消息等级（底边栏消息显示颜色）
+	enum class MessageLevel {
+		Info = 0,    // 普通信息：灰色
+		Success,     // 成功：绿色
+		Warning,     // 警告：橙色
+		Error        // 错误：红色
+	};
+
 	// 构造与析构
 	WarRoomMainWindow(QWidget* parent = nullptr);
 	~WarRoomMainWindow();
@@ -64,6 +85,10 @@ public:
 		const std::string& toId, int toEdge);
 	// 拖拽锚点到空白处：创建新节点并自动连线
 	void createNodeAndLink(const std::string& fromId, int fromEdge, QPointF scenePos);
+
+	// ---- 底边栏消息（不弹窗，底部短暂显示）----
+	// durationMs <= 0 表示不自动消失
+	void showMessage(const QString& text, MessageLevel level = MessageLevel::Info, int durationMs = -1);
 
 	// ---- 字体配置（公开，供 NodeGraphicsItem/LinkGraphicsItem 调用）----
 	static QFont getNodeFont();
@@ -129,6 +154,10 @@ private slots:
 	void onSaveAction();        // 保存
 	void onSaveAsAction();      // 另存为
 	void onLoadAction();        // 打开
+	// 点击最近打开菜单项
+	void onOpenRecentFile();    // 从 sender()->data() 读路径
+	// 清除最近文件列表
+	void onClearRecentFiles();
 
 	// 导入导出
 	void onExportJson();        // 导出 JSON
@@ -155,7 +184,18 @@ private slots:
 	// 帮助
 	void onAbout();             // 关于
 
+	// 底边栏消息定时器超时
+	void onMessageTimeout();
+
+	// 文档统计信息：点击"查看"弹出统计对话框
+	void onShowDocumentStats();
+
 private:
+	// ---- 底边栏（状态栏）辅助 ----
+	void setupStatusBar();      // 构建底边栏 UI
+	void updateCurrentFileLabel(); // 更新「当前文件名」显示（含●未保存标记）
+	void updateSavedTimeLabel();   // 更新「上次保存时间」显示
+	void markDirty();              // 标记文档有未保存修改
 	// ---- 场景初始化 ----
 	void setupScene();          // 初始化场景和视图
 	void populateFromModel();   // 从模型填充场景（含测试数据）
@@ -163,9 +203,17 @@ private:
 	void clearScene();          // 清空场景
 
 	// ---- UI 组件设置 ----
-	void setupMenuBar();        // 设置菜单栏
-	void setupToolBar();        // 设置工具栏
 	void setupSceneConnections(); // 设置场景信号连接
+
+	// ---- 最近打开文件 ----
+	// 读取最近打开文件列表（按时间倒序，最新在最前）
+	static QStringList readRecentFiles();
+	// 添加一条记录到最近列表（去重并顶到最前，超过上限自动删除尾部）
+	static void addToRecentFiles(const QString& path);
+	// 清空最近文件列表
+	static void clearRecentFiles();
+	// 构建最近打开子菜单（菜单动态填充，文件不存在时置灰，末尾加清除入口）
+	void populateRecentFilesMenu(QMenu* menu);
 
 	// ---- 文件检查 ----
 	bool maybeSave();           // 检查是否需要保存
@@ -232,6 +280,12 @@ private:
 	void addNodeFromDrop(QPointF scenePos, const QMimeData* mimeData);
 	void editNode(const std::string& nodeId);
 
+	// ---- 文档统计 ----
+	// 递归统计子树累计节点数/字数
+	void accumulateStats(const std::string& nodeId, int& outNodeCount, int& outCharCount) const;
+	// 组装当前文档完整统计信息（含文件体积/文件名）
+	DocumentStats computeDocumentStats() const;
+
 	// ---- 颜色刷新 ----
 	void refreshAllNodeTextColors();
 	void refreshAllLinkColors();
@@ -273,6 +327,14 @@ private:
 	TodoSidebar* m_todoSidebar = nullptr;   // 右侧待办侧边栏
 	QPushButton* m_todoToggleBtn = nullptr; // 待办侧边栏切换按钮
 
+	// ---- 底边栏（状态栏）----
+	QWidget* m_statusBar = nullptr;         // 底边栏容器
+	QLabel* m_savedTimeLabel = nullptr;     // 左：上次保存时间
+	QLabel* m_currentFileLabel = nullptr;   // 中：当前文件名（● 未保存圆点）
+	QLabel* m_messageLabel = nullptr;       // 右：消息提示
+	QTimer* m_messageTimer = nullptr;       // 消息自动消失定时器
+	bool m_bDirty = false;                  // 文档有未保存修改（文件名前加●）
+
 	// ---- 主程序快捷键 Action（用于键位设置实时更新） ----
 	QAction* m_newAction = nullptr;
 	QAction* m_openAction = nullptr;
@@ -282,6 +344,8 @@ private:
 	QAction* m_undoAction = nullptr;
 	QAction* m_redoAction = nullptr;
 	QAction* m_deleteAction = nullptr;
+
+
 
 	// ---- 配置管理 ----
 	// 返回配置目录（独立于可执行文件，用于存储基础信息）

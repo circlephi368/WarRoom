@@ -16,6 +16,7 @@
 #include <QPushButton>
 #include <QDir>
 #include <QFile>
+#include <QDirIterator>
 #include <QTextStream>
 #include <QToolButton>
 #include <QFileInfo>
@@ -23,6 +24,8 @@
 #include <QSettings>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QFormLayout>
+#include <QLocale>
 #include <QLabel>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -33,6 +36,12 @@
 #include <QKeySequenceEdit>
 #include <QDialogButtonBox>
 #include <QButtonGroup>
+#include <QMenu>
+#include <QAction>
+#include <QFileInfo>
+#include <QToolButton>
+#include <QTimer>
+#include <QFrame>
 
 // 项目核心 - 命令
 #include "core/command/add_link_command.h"
@@ -367,8 +376,50 @@ void WarRoomMainWindow::createNodeAndLink(const std::string& fromId, int fromEdg
 	using warroom::WarNode;
 	using warroom::LinkType;
 
-	// 1. 创建新节点
-	WarNode newNode = WarNode::makeLeaf("新节点", scenePos.x(), scenePos.y());
+	// 连线将连接到新节点的哪个锚点？（对边：右<->左, 下<->上）
+	const int toEdge = (fromEdge + 2) % 4;
+
+	// 节点默认尺寸（WarNode 默认值）：宽160 高60
+	// 【关键】WarNode::pos_x / pos_y 存的是节点左上角场景坐标
+	//       （NodeGraphicsItem::boundingRect() 返回 QRectF(0, 0, w, h)，锚点局部坐标原点即左上角）
+	//
+	// 锚点局部坐标公式（参考 NodeGraphicsItem::updateAnchorsPosition）：
+	//   edge=0 右 → 局部(w, h/2)
+	//   edge=1 下 → 局部(w/2, h)
+	//   edge=2 左 → 局部(0,   h/2)
+	//   edge=3 上 → 局部(w/2, 0)
+	//
+	// 已知：scenePos = 新节点 toEdge 锚点的场景坐标
+	// 求：左上角 (tx, ty)。因为 锚点场景坐标 = (tx,ty) + 局部坐标，所以：
+	//   tx = scenePos.x - localX_of_anchor
+	//   ty = scenePos.y - localY_of_anchor
+	constexpr float kW = 160.0f;
+	constexpr float kH = 60.0f;
+
+	float tx = scenePos.x();
+	float ty = scenePos.y();
+	switch (toEdge) {
+	case 0:  // 右锚点 局部(w, h/2) → 场景(tx+w, ty+h/2) = scenePos → tx = x-w, ty = y-h/2
+		tx = scenePos.x() - kW;
+		ty = scenePos.y() - kH / 2.0f;
+		break;
+	case 1:  // 下锚点 局部(w/2, h) → 场景(tx+w/2, ty+h) = scenePos → tx = x-w/2, ty = y-h
+		tx = scenePos.x() - kW / 2.0f;
+		ty = scenePos.y() - kH;
+		break;
+	case 2:  // 左锚点 局部(0, h/2) → 场景(tx, ty+h/2) = scenePos → tx = x, ty = y-h/2
+		tx = scenePos.x();
+		ty = scenePos.y() - kH / 2.0f;
+		break;
+	case 3:  // 上锚点 局部(w/2, 0) → 场景(tx+w/2, ty) = scenePos → tx = x-w/2, ty = y
+	default:
+		tx = scenePos.x() - kW / 2.0f;
+		ty = scenePos.y();
+		break;
+	}
+
+	// 1. 创建新节点（传入左上角 tx, ty，对应 WarNode::pos_x/pos_y）
+	WarNode newNode = WarNode::makeLeaf("新节点", tx, ty);
 	newNode.full_text = "";
 
 	auto addNodeCmd = std::make_unique<warroom::AddNodeCommand>(
@@ -380,29 +431,88 @@ void WarRoomMainWindow::createNodeAndLink(const std::string& fromId, int fromEdg
 	// 2. 同步UI，创建节点图形项
 	syncAllItemsFromModel();
 
-	// 3. 创建连线（从新节点的对边连到起始节点）
-	int toEdge = (fromEdge + 2) % 4;  // 对边：右<->左, 下<->上
+	// 3. 创建连线（从新节点的 toEdge 连回到起始节点的 fromEdge）
+	{
+		warroom::WarLink link = warroom::WarLink::makeNodeToNode(
+			fromId, fromEdge, newNodeId, toEdge, LinkType::Dependency);
+		link.label = "";
+		link.color = "#3498db";
 
-	warroom::WarLink link = warroom::WarLink::makeNodeToNode(
-		fromId, fromEdge, newNodeId, toEdge, LinkType::Dependency);
-	link.label = "";
-	link.color = "#3498db";
+		auto addLinkCmd = std::make_unique<warroom::AddLinkCommand>(std::move(link));
+		warroom::Uuid newLinkId = addLinkCmd->getLinkId();
 
-	auto addLinkCmd = std::make_unique<warroom::AddLinkCommand>(std::move(link));
-	warroom::Uuid newLinkId = addLinkCmd->getLinkId();
+		m_undoManager.executeCommand(std::move(addLinkCmd), m_model);
 
-	m_undoManager.executeCommand(std::move(addLinkCmd), m_model);
-
-	// 4. 创建连线图形项
-	const warroom::WarLink* createdLink = m_model.getLink(newLinkId);
-	if (createdLink) {
-		auto* linkItem = new LinkGraphicsItem(newLinkId, &m_model);
-		setupLinkItemConnections(linkItem);
-		m_scene->addItem(linkItem);
+		// 4. 创建连线图形项
+		const warroom::WarLink* createdLink = m_model.getLink(newLinkId);
+		if (createdLink) {
+			auto* linkItem = new LinkGraphicsItem(newLinkId, &m_model);
+			setupLinkItemConnections(linkItem);
+			m_scene->addItem(linkItem);
+		}
 	}
 
-	// 5. 刷新连线
+	// 5. 根据节点中心点刷新父子关系（参考 onNodeMoveFinished 逻辑）
+	NodeGraphicsItem* newItem = m_nodeItems.value(QString::fromStdString(newNodeId));
+	std::string parentAfter = m_model.getDocumentRootId();
+	if (newItem) {
+		QPointF center = newItem->sceneBoundingRect().center();
+		std::string targetId = findTopmostNodeAtPoint(center, newNodeId);
+
+		if (!targetId.empty()) {
+			// 检查目标是否是当前节点的后代（不能把自己挂到自己的后代下面）
+			bool isDescendant = false;
+			warroom::Uuid checkId = targetId;
+			const std::string rootId = m_model.getDocumentRootId();
+			while (!checkId.empty() && checkId != rootId) {
+				if (checkId == newNodeId) {
+					isDescendant = true;
+					break;
+				}
+				const warroom::WarNode* checkNode = m_model.getNode(checkId);
+				if (!checkNode) break;
+				checkId = checkNode->parent_id;
+			}
+
+			if (!isDescendant) {
+				reparentNode(newNodeId, targetId);
+				parentAfter = targetId;
+			}
+		}
+	}
+
+	// 6. 刷新 Z 值 + 强制对齐图形项 / 锚点 / 场景
+	//    注意：此处流程与 onNodeMoveFinished 结束后的行为保持一致——
+	//    先 reparent（已完成）→ normalizeZ → 重建 bbox → syncAll（内部遍历每个 item
+	//    blockSignals + refresh() 做 setPos + setSize + updateAnchorsPosition +
+	//    refreshSidebar/refreshTodo），最后手动刷新一遍每个节点的绝对 Z 值、
+	//    连线路径及 scene，保证新节点视觉结果与"手动拖完父节点后"完全相同。
+	m_model.normalizeZValues();
+	rebuildAllBoundingRects();
+	syncAllItemsFromModel(); // 内部已包含 refreshSidebarTree + refreshTodoSidebar
+
+	// 手动把 Z 值映射到 QGraphicsItem::setZValue（syncAll 只对新创建的 item 设置了 Z）
+	for (auto it = m_nodeItems.cbegin(); it != m_nodeItems.cend(); ++it) {
+		NodeGraphicsItem* item = it.value();
+		int abs_z = m_model.computeAbsoluteZ(it.key().toStdString());
+		item->updateAbsoluteZ(abs_z);
+	}
+
+	// 连线和锚点
 	refreshLinks();
+	// 对所有节点显式触发一次 updateAnchorsPosition（确保锚点坐标跟最新 size/pos 对齐）
+	for (auto* item : m_nodeItems) {
+		item->setResizingEnabled(!(m_model.getNode(item->nodeId()) &&
+								   m_model.getNode(item->nodeId())->is_collapsed));
+		item->setNodeSize(item->getWidth(), item->getHeight());
+	}
+
+	// 强制 scene 重绘（清除 Qt 内部的缓存）
+	if (m_scene) {
+		QRectF sceneRect = m_scene->sceneRect();
+		if (sceneRect.isNull()) sceneRect = QRectF(-1e6, -1e6, 2e6, 2e6);
+		m_scene->update(sceneRect);
+	}
 }
 
 // ============================================================================
@@ -417,6 +527,7 @@ void WarRoomMainWindow::onNewAction()
 	warroom::WarRoomModel newModel;
 	m_model = std::move(newModel);
 	m_currentFilePath.clear();
+	m_bDirty = false;
 	// 文档目录清空，便于 ImageMod/VideoMod 之类的资源相对路径解析
 	warroom::ImageMod::setCurrentDocumentDir(QString());
 	warroom::VideoMod::setCurrentDocumentDir(QString());
@@ -426,6 +537,11 @@ void WarRoomMainWindow::onNewAction()
 	onResetView();
 	refreshSidebarTree();
 	refreshTodoSidebar();
+
+	// 刷新底边栏
+	updateSavedTimeLabel();
+	updateCurrentFileLabel();
+	showMessage("已新建空白文档", MessageLevel::Info, 2500);
 }
 
 // 静态辅助：判断 .warroom 文件是否为新版格式（文件所在目录名 == 文件名去后缀）
@@ -476,11 +592,14 @@ void WarRoomMainWindow::onSaveAction()
 	if (m_model.saveToFolder(folderPath.toStdString())) {
 		m_currentFilePath = getWarroomFromFolder(folderPath);
 		writeLastOpenFilePath(m_currentFilePath);
-		QMessageBox::information(this, "保存成功",
-			QString("已保存到：\n%1").arg(m_currentFilePath));
+		addToRecentFiles(m_currentFilePath);
+		m_bDirty = false;
+		updateSavedTimeLabel();
+		updateCurrentFileLabel();
+		showMessage("保存成功", MessageLevel::Success, 3000);
 	}
 	else {
-		QMessageBox::warning(this, "保存失败", "无法保存文件");
+		showMessage("保存失败：无法写入文件", MessageLevel::Error, 6000);
 	}
 }
 
@@ -517,51 +636,28 @@ void WarRoomMainWindow::onSaveAsAction()
 		// 统一 m_currentFilePath 为 .warroom 文件路径
 		m_currentFilePath = getWarroomFromFolder(folderPath);
 		writeLastOpenFilePath(m_currentFilePath);
-		QMessageBox::information(this, "保存成功",
-			QString("已保存到：\n%1").arg(m_currentFilePath));
+		addToRecentFiles(m_currentFilePath);
+		m_bDirty = false;
+		updateSavedTimeLabel();
+		updateCurrentFileLabel();
+		showMessage(QString("已另存为：%1").arg(QFileInfo(folderPath).fileName()),
+			MessageLevel::Success, 3500);
 	}
 	else {
-		QMessageBox::warning(this, "保存失败", "无法保存文件");
+		showMessage("另存为失败：无法写入文件", MessageLevel::Error, 6000);
 	}
 }
 
 void WarRoomMainWindow::onLoadAction()
 {
 	qDebug() << "[KEYDBG-SLOT] onLoadAction triggered";
+	if (!maybeSave()) return;
+
 	QString path = QFileDialog::getOpenFileName(this, "打开作战图", "",
 		"WarRoom文件 (*.warroom)");
 	if (path.isEmpty()) return;
 
-	QString docDir = isNewFormatWarroom(path)
-		? getArchiveFolderFromWarroom(path)
-		: QFileInfo(path).absolutePath();
-
-	warroom::ImageMod::setCurrentDocumentDir(docDir);
-	warroom::VideoMod::setCurrentDocumentDir(docDir);
-
-	warroom::WarRoomModel newModel;
-	if (newModel.loadFromAuto(path.toStdString())) {
-		m_model = std::move(newModel);
-		m_currentFilePath = path;
-		writeLastOpenFilePath(path);
-
-		m_model.normalizeZValues();
-
-		m_scene->clear();
-		rebuildFromModel();
-
-		if (m_view) {
-			warroom::Point2D viewPos;
-			float zoom;
-			m_model.getCameraView(viewPos, zoom);
-			m_view->restoreViewState(viewPos, zoom);
-		}
-
-		QMessageBox::information(this, "加载成功", "文件已加载");
-	}
-	else {
-		QMessageBox::warning(this, "加载失败", "无法加载文件");
-	}
+	loadFromFilePath(path);
 }
 
 // ============================================================================
@@ -621,6 +717,7 @@ void WarRoomMainWindow::onUndo()
 		m_undoManager.undo(m_model);
 		syncAllItemsFromModel();
 		refreshLinks();
+		markDirty();
 	}
 }
 
@@ -631,6 +728,7 @@ void WarRoomMainWindow::onRedo()
 		m_undoManager.redo(m_model);
 		syncAllItemsFromModel();
 		refreshLinks();
+		markDirty();
 	}
 }
 
@@ -758,6 +856,226 @@ void WarRoomMainWindow::onAbout()
 		"• 撤销/重做\n"
 		"• 保存/加载文件\n"
 		"• 导入/导出 JSON");
+}
+
+// ============================================================================
+// 私有槽 - 文档统计
+// ============================================================================
+
+void WarRoomMainWindow::accumulateStats(const std::string& nodeId, int& outNodeCount, int& outCharCount) const
+{
+	// 先处理自身（传入的 nodeId 不包含根，所以无需跳过）
+	const warroom::WarNode* node = m_model.getNode(nodeId);
+	if (node) {
+		outNodeCount++;
+		outCharCount += QString::fromStdString(node->full_text).length();
+	}
+	// 递归子节点
+	auto children = m_model.getChildren(nodeId);
+	for (const auto& childId : children) {
+		accumulateStats(childId, outNodeCount, outCharCount);
+	}
+}
+
+DocumentStats WarRoomMainWindow::computeDocumentStats() const
+{
+	DocumentStats s;
+
+	// 1. 节点数 & 字数：从文档根的一级子节点开始递归（文档根本身不计入）
+	int nc = 0, cc = 0;
+	const std::string rootId = m_model.getDocumentRootId();
+	auto children = m_model.getChildren(rootId);
+	for (const auto& childId : children) {
+		accumulateStats(childId, nc, cc);
+	}
+	s.nodeCount = nc;
+	s.charCount = cc;
+
+	// 2. 文件名/路径/存档体积
+	s.filePath = m_currentFilePath;
+	if (m_currentFilePath.isEmpty()) {
+		s.fileName = QStringLiteral("未命名");
+		s.fileSize = 0;
+	}
+	else {
+		QFileInfo info(m_currentFilePath);
+		s.fileName = info.fileName();
+
+		// 存档体积 = .warroom 所在文件夹的所有文件体积之和（含 mod_data 等资源）
+		QString archiveDir = info.absolutePath();
+		QDir dir(archiveDir);
+		if (info.exists() && dir.exists()) {
+			qint64 total = 0;
+			// 递归遍历整个存档目录（Subdirectories + Files），跳过特殊条目
+			QDirIterator it(archiveDir,
+				QDir::Files | QDir::NoDotAndDotDot | QDir::Hidden,
+				QDirIterator::Subdirectories | QDirIterator::FollowSymlinks);
+			while (it.hasNext()) {
+				it.next();
+				QFileInfo f = it.fileInfo();
+				if (f.isFile()) {
+					total += f.size();
+				}
+			}
+			s.fileSize = total;
+		}
+		else {
+			// 文件或目录不存在 -> 体积标 0，显示时提示"未保存"
+			s.fileSize = 0;
+		}
+	}
+
+	return s;
+}
+
+void WarRoomMainWindow::onShowDocumentStats()
+{
+	DocumentStats s = computeDocumentStats();
+
+	QDialog* dlg = new QDialog(this);
+	dlg->setWindowTitle(QStringLiteral("当前文档统计信息"));
+	dlg->setMinimumWidth(360);
+	dlg->setStyleSheet(R"(
+		QDialog {
+			background-color: #252525;
+			color: #CCCCCC;
+		}
+		QLabel {
+			color: #CCCCCC;
+			font-size: 12px;
+		}
+		QLabel#statsKeyLabel {
+			color: #AAAAAA;
+			font-size: 12px;
+		}
+		QLabel#statsValueLabel {
+			color: #FFFFFF;
+			font-size: 13px;
+			font-weight: bold;
+		}
+		QLabel#statsHintLabel {
+			color: #888888;
+			font-size: 10px;
+		}
+		QPushButton {
+			background-color: #3A3A3A;
+			color: #CCCCCC;
+			border: none;
+			padding: 6px 18px;
+			border-radius: 3px;
+			minimum-width: 80px;
+			font-size: 12px;
+		}
+		QPushButton:hover {
+			background-color: #4A4A4A;
+			color: #FFFFFF;
+		}
+		QPushButton:pressed {
+			background-color: #2A2A2A;
+		}
+	)");
+
+	auto* form = new QFormLayout(dlg);
+	form->setContentsMargins(22, 22, 22, 16);
+	form->setSpacing(10);
+	form->setLabelAlignment(Qt::AlignLeft);
+	form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+
+	QLocale loc(QLocale::English); // 用于千分位逗号分隔
+
+	auto makeRow = [&](const QString& key, const QString& value,
+					   const QString& tooltip = QString())
+	{
+		QLabel* keyLbl = new QLabel(key + "：", dlg);
+		keyLbl->setObjectName("statsKeyLabel");
+
+		QLabel* valLbl = new QLabel(value, dlg);
+		valLbl->setObjectName("statsValueLabel");
+		valLbl->setTextInteractionFlags(Qt::TextSelectableByMouse); // 允许复制数值
+		valLbl->setWordWrap(true);
+		if (!tooltip.isEmpty()) {
+			keyLbl->setToolTip(tooltip);
+			valLbl->setToolTip(tooltip);
+		}
+		form->addRow(keyLbl, valLbl);
+	};
+
+	// 1. 文件名
+	{
+		QString fn = s.fileName;
+		QString tip = s.filePath.isEmpty() ? QStringLiteral("尚未保存为文件") : s.filePath;
+		if (!s.filePath.isEmpty() && s.fileSize == 0) {
+			tip += QStringLiteral("\n（文件磁盘上不存在，体积未知）");
+		}
+		makeRow(QStringLiteral("文件名"), fn, tip);
+	}
+
+	// 2. 总节点数
+	makeRow(QStringLiteral("总节点数"),
+			loc.toString(s.nodeCount),
+			QStringLiteral("不含文档根节点本身"));
+
+	// 3. 总字数
+	makeRow(QStringLiteral("总字数"),
+			loc.toString(s.charCount),
+			QStringLiteral("所有节点 full_text 字符数总和，含空格、换行与 Markdown 标记"));
+
+	// 4. 存档体积
+	{
+		QString sizeStr;
+		QString tip;
+		if (s.fileSize <= 0 || s.filePath.isEmpty()) {
+			sizeStr = QStringLiteral("未保存");
+			tip = QStringLiteral("未命名或文件磁盘上不存在，请先保存后再查看");
+		}
+		else {
+			// 1024 换算：B / KB / MB / GB
+			qint64 bytes = s.fileSize;
+			if (bytes < 1024) {
+				sizeStr = QString("%1 B").arg(bytes);
+			}
+			else if (bytes < 1024LL * 1024LL) {
+				sizeStr = QString("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
+			}
+			else if (bytes < 1024LL * 1024LL * 1024LL) {
+				sizeStr = QString("%1 MB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
+			}
+			else {
+				sizeStr = QString("%1 GB").arg(bytes / (1024.0 * 1024.0 * 1024.0), 0, 'f', 2);
+			}
+			// 存档目录：即 .warroom 所在文件夹（含 mod_data 整个递归体积）
+			QFileInfo fInfo(s.filePath);
+			QString archiveDir = fInfo.absolutePath();
+			tip = QString("%1\n整个存档目录（含 mod_data 等资源），递归所有文件：%2 字节 (1024 进制换算)")
+				.arg(archiveDir)
+				.arg(loc.toString(bytes));
+		}
+		makeRow(QStringLiteral("存档体积"), sizeStr, tip);
+	}
+
+	form->addItem(new QSpacerItem(1, 4, QSizePolicy::Minimum, QSizePolicy::Fixed));
+
+	// 底部说明
+	QLabel* hint = new QLabel(QStringLiteral("每次打开对话框时重新计算"), dlg);
+	hint->setObjectName("statsHintLabel");
+	hint->setAlignment(Qt::AlignRight);
+	form->addRow(nullptr, hint);
+
+	// 关闭按钮
+	auto* btnRow = new QWidget(dlg);
+	auto* btnLayout = new QHBoxLayout(btnRow);
+	btnLayout->setContentsMargins(0, 0, 0, 0);
+	btnLayout->addStretch(1);
+
+	QPushButton* closeBtn = new QPushButton(QStringLiteral("关闭"), dlg);
+	btnLayout->addWidget(closeBtn);
+
+	form->addRow(nullptr, btnRow);
+
+	QObject::connect(closeBtn, &QPushButton::clicked, dlg, &QDialog::accept);
+
+	dlg->exec();
+	dlg->deleteLater();
 }
 
 // ============================================================================
@@ -910,127 +1228,7 @@ void WarRoomMainWindow::clearScene()
 // 私有方法 - UI 组件设置
 // ============================================================================
 
-void WarRoomMainWindow::setupMenuBar()
-{
-	QMenuBar* menuBar = this->menuBar();
-	if (!menuBar) {
-		menuBar = new QMenuBar(this);
-		this->setMenuBar(menuBar);
-	}
 
-	// ---- 文件菜单 ----
-	QMenu* fileMenu = menuBar->addMenu("文件(&F)");
-
-	m_newAction = new QAction("新建(&N)", this);
-	m_newAction->setShortcut(QKeySequence::New);
-	connect(m_newAction, &QAction::triggered, this, &WarRoomMainWindow::onNewAction);
-	fileMenu->addAction(m_newAction);
-
-	fileMenu->addSeparator();
-
-	m_openAction = new QAction("打开(&O)...", this);
-	m_openAction->setShortcut(QKeySequence::Open);
-	connect(m_openAction, &QAction::triggered, this, &WarRoomMainWindow::onLoadAction);
-	fileMenu->addAction(m_openAction);
-
-	m_saveAction = new QAction("保存(&S)", this);
-	m_saveAction->setShortcut(QKeySequence::Save);
-	connect(m_saveAction, &QAction::triggered, this, &WarRoomMainWindow::onSaveAction);
-	fileMenu->addAction(m_saveAction);
-
-	m_saveAsAction = new QAction("另存为(&A)...", this);
-	m_saveAsAction->setShortcut(QKeySequence::SaveAs);
-	connect(m_saveAsAction, &QAction::triggered, this, &WarRoomMainWindow::onSaveAsAction);
-	fileMenu->addAction(m_saveAsAction);
-
-	fileMenu->addSeparator();
-
-	QAction* importAction = new QAction("导入 JSON(&I)...", this);
-	connect(importAction, &QAction::triggered, this, &WarRoomMainWindow::onImportJson);
-	fileMenu->addAction(importAction);
-
-	QAction* exportAction = new QAction("导出 JSON(&E)...", this);
-	connect(exportAction, &QAction::triggered, this, &WarRoomMainWindow::onExportJson);
-	fileMenu->addAction(exportAction);
-
-	fileMenu->addSeparator();
-
-	m_exitAction = new QAction("退出(&X)", this);
-	m_exitAction->setShortcut(QKeySequence::Quit);
-	connect(m_exitAction, &QAction::triggered, this, &QWidget::close);
-	fileMenu->addAction(m_exitAction);
-
-	// ---- 编辑菜单 ----
-	QMenu* editMenu = menuBar->addMenu("编辑(&E)");
-
-	m_undoAction = new QAction("撤销(&U)", this);
-	m_undoAction->setShortcut(QKeySequence::Undo);
-	connect(m_undoAction, &QAction::triggered, this, &WarRoomMainWindow::onUndo);
-	editMenu->addAction(m_undoAction);
-
-	m_redoAction = new QAction("重做(&R)", this);
-	m_redoAction->setShortcut(QKeySequence::Redo);
-	connect(m_redoAction, &QAction::triggered, this, &WarRoomMainWindow::onRedo);
-	editMenu->addAction(m_redoAction);
-
-	editMenu->addSeparator();
-
-	m_deleteAction = new QAction("删除(&D)", this);
-	m_deleteAction->setShortcut(QKeySequence::Delete);
-	connect(m_deleteAction, &QAction::triggered, this, &WarRoomMainWindow::deleteSelectedNode);
-	editMenu->addAction(m_deleteAction);
-
-	// ---- 视图菜单 ----
-	QMenu* viewMenu = menuBar->addMenu("视图(&V)");
-
-	QAction* resetViewAction = new QAction("重置视图(&R)", this);
-	connect(resetViewAction, &QAction::triggered, this, &WarRoomMainWindow::onResetView);
-	viewMenu->addAction(resetViewAction);
-
-	// ---- 帮助菜单 ----
-	QMenu* helpMenu = menuBar->addMenu("帮助(&H)");
-
-	QAction* aboutAction = new QAction("关于(&A)", this);
-	connect(aboutAction, &QAction::triggered, this, &WarRoomMainWindow::onAbout);
-	helpMenu->addAction(aboutAction);
-}
-
-void WarRoomMainWindow::setupToolBar()
-{
-	QToolBar* toolBar = addToolBar("文件");
-
-	if (!m_newAction) {
-		m_newAction = new QAction(QIcon(), "新建", this);
-		connect(m_newAction, &QAction::triggered, this, &WarRoomMainWindow::onNewAction);
-	}
-	toolBar->addAction(m_newAction);
-
-	if (!m_openAction) {
-		m_openAction = new QAction(QIcon(), "打开", this);
-		connect(m_openAction, &QAction::triggered, this, &WarRoomMainWindow::onLoadAction);
-	}
-	toolBar->addAction(m_openAction);
-
-	if (!m_saveAction) {
-		m_saveAction = new QAction(QIcon(), "保存", this);
-		connect(m_saveAction, &QAction::triggered, this, &WarRoomMainWindow::onSaveAction);
-	}
-	toolBar->addAction(m_saveAction);
-
-	toolBar->addSeparator();
-
-	if (!m_undoAction) {
-		m_undoAction = new QAction(QIcon(), "撤销", this);
-		connect(m_undoAction, &QAction::triggered, this, &WarRoomMainWindow::onUndo);
-	}
-	toolBar->addAction(m_undoAction);
-
-	if (!m_redoAction) {
-		m_redoAction = new QAction(QIcon(), "重做", this);
-		connect(m_redoAction, &QAction::triggered, this, &WarRoomMainWindow::onRedo);
-	}
-	toolBar->addAction(m_redoAction);
-}
 
 void WarRoomMainWindow::setupSceneConnections()
 {
@@ -1043,6 +1241,9 @@ void WarRoomMainWindow::setupSceneConnections()
 
 bool WarRoomMainWindow::maybeSave()
 {
+	// 没有未保存修改：直接放行
+	if (!m_bDirty) return true;
+
 	QMessageBox::StandardButton reply;
 	reply = QMessageBox::question(this, "未保存的更改",
 		"当前图表有未保存的更改，是否保存？",
@@ -1504,6 +1705,7 @@ void WarRoomMainWindow::executeCommand(std::unique_ptr<warroom::Command> cmd)
 	m_undoManager.executeCommand(std::move(cmd), m_model);
 	syncAllItemsFromModel();
 	refreshLinks();
+	markDirty(); // 任何命令执行后视为有未保存修改
 }
 
 // ============================================================================
@@ -1650,6 +1852,60 @@ void WarRoomMainWindow::addNodeFromDrop(QPointF scenePos, const QMimeData* mimeD
 				mod->onDropToNewNode(mimeData,
 					m_model.getNodeMutable(nodeId), modData);
 			}
+
+			// ==================== 根据节点中心点刷新父子关系 & Z 值 ====================
+			// （逻辑完全对齐 createNodeAndLink / onNodeMoveFinished）
+			NodeGraphicsItem* droppedItem = m_nodeItems.value(QString::fromStdString(nodeId));
+			if (droppedItem) {
+				QPointF center = droppedItem->sceneBoundingRect().center();
+				std::string targetId = findTopmostNodeAtPoint(center, nodeId);
+
+				if (!targetId.empty()) {
+					// 检查目标是否是当前节点的后代（不能把自己挂到自己的后代下面）
+					bool isDescendant = false;
+					warroom::Uuid checkId = targetId;
+					const std::string rootId = m_model.getDocumentRootId();
+					while (!checkId.empty() && checkId != rootId) {
+						if (checkId == nodeId) {
+							isDescendant = true;
+							break;
+						}
+						const warroom::WarNode* checkNode = m_model.getNode(checkId);
+						if (!checkNode) break;
+						checkId = checkNode->parent_id;
+					}
+
+					if (!isDescendant) {
+						reparentNode(nodeId, targetId);
+					}
+				}
+			}
+
+			// 完整刷新链路：Z → bbox → syncAll（setPos/setSize/refresh 全节点）
+			//            → absZ → links → setNodeSize → scene.update()
+			m_model.normalizeZValues();
+			rebuildAllBoundingRects();
+			syncAllItemsFromModel();
+
+			for (auto it = m_nodeItems.cbegin(); it != m_nodeItems.cend(); ++it) {
+				NodeGraphicsItem* item = it.value();
+				int abs_z = m_model.computeAbsoluteZ(it.key().toStdString());
+				item->updateAbsoluteZ(abs_z);
+			}
+
+			refreshLinks();
+			for (auto* item : m_nodeItems) {
+				const warroom::WarNode* n = m_model.getNode(item->nodeId());
+				item->setResizingEnabled(!(n && n->is_collapsed));
+				item->setNodeSize(item->getWidth(), item->getHeight());
+			}
+
+			if (m_scene) {
+				QRectF sceneRect = m_scene->sceneRect();
+				if (sceneRect.isNull()) sceneRect = QRectF(-1e6, -1e6, 2e6, 2e6);
+				m_scene->update(sceneRect);
+			}
+
 			break;
 		}
 	}
@@ -2025,14 +2281,15 @@ bool WarRoomMainWindow::eventFilter(QObject* watched, QEvent* event)
 			<< "key =" << ke->key() << "modifiers =" << ke->modifiers();
 	}
 
-	// 保持左下角设置按钮始终位于左下角
+	// 保持左下角设置按钮始终位于左下角（底边栏高度 24px，需向上偏移）
 	if (m_centralContainer && m_settingsCorner && watched == m_centralContainer) {
 		if (event->type() == QEvent::Resize) {
 			QSize containerSize = m_centralContainer->size();
-			int cornerW = 100;
-			int cornerH = 90;
+			const int cornerW = 100;
+			const int cornerH = 90;
+			const int statusBarH = 24; // 底边栏固定高度
 			m_settingsCorner->setGeometry(
-				0, containerSize.height() - cornerH, cornerW, cornerH);
+				0, containerSize.height() - cornerH - statusBarH, cornerW, cornerH);
 			m_settingsCorner->raise();
 
 			// 同步高亮覆盖层大小
@@ -2104,7 +2361,10 @@ void WarRoomMainWindow::setupCustomUi()
 	// 每个工具栏按钮关联一个 QAction：按钮 clicked -> action trigger
 	// QAction 是快捷键注册的载体，applyKeyBindings() 会把 QKeySequence 应用到这些 action 上
 	QPushButton* newBtn = new QPushButton("新建", toolBarContainer);
-	QPushButton* openBtn = new QPushButton("打开", toolBarContainer);
+	// "打开"按钮使用 QToolButton（与【文件】按钮一致，整个按钮即弹出下拉菜单）
+	QToolButton* openBtn = new QToolButton(toolBarContainer);
+	openBtn->setText("打开");
+	openBtn->setPopupMode(QToolButton::InstantPopup);  // 整个按钮点击弹出菜单
 	QPushButton* saveBtn = new QPushButton("保存", toolBarContainer);
 	QPushButton* undoBtn = new QPushButton("撤销", toolBarContainer);
 	QPushButton* redoBtn = new QPushButton("重做", toolBarContainer);
@@ -2142,7 +2402,7 @@ void WarRoomMainWindow::setupCustomUi()
 		connect(m_deleteAction, &QAction::triggered, this, &WarRoomMainWindow::deleteSelectedNode);
 	}
 
-	// 按钮样式
+	// 普通按钮样式（QPushButton）
 	QString btnStyle = R"(
 		QPushButton {
 			background: #3A3A3A;
@@ -2160,8 +2420,61 @@ void WarRoomMainWindow::setupCustomUi()
 		}
 	)";
 
+	// 统一深色扁平菜单样式（与节点/连线右键菜单一致）
+	const QString darkMenuStyle = R"(
+		QMenu {
+			background-color: #2D2D2D;
+			border: 1px solid #3A3A3A;
+			border-radius: 4px;
+			padding: 4px 0px;
+		}
+		QMenu::item {
+			background-color: transparent;
+			color: #CCCCCC;
+			padding: 6px 28px 6px 20px;
+			border: none;
+			margin: 0px 4px;
+			border-radius: 2px;
+		}
+		QMenu::item:selected {
+			background-color: #4A4A4A;
+			color: #FFFFFF;
+		}
+		QMenu::item:pressed {
+			background-color: #3A6A9A;
+			color: #FFFFFF;
+		}
+		QMenu::separator {
+			height: 1px;
+			background-color: #3A3A3A;
+			margin: 4px 8px;
+		}
+	)";
+
+	// QToolButton 样式（与【文件】按钮一致，InstantPopup 模式）
+	QString toolBtnStyle = R"(
+		QToolButton {
+			background: #3A3A3A;
+			border: none;
+			padding: 4px 10px;
+			border-radius: 3px;
+			color: #CCCCCC;
+			font-size: 12px;
+		}
+		QToolButton:hover {
+			background: #4A4A4A;
+		}
+		QToolButton:pressed {
+			background: #2A2A2A;
+		}
+		QToolButton::menu-button {
+			border: none;
+			padding-left: 4px;
+		}
+	)";
+
 	newBtn->setStyleSheet(btnStyle);
-	openBtn->setStyleSheet(btnStyle);
+	openBtn->setStyleSheet(toolBtnStyle);
 	saveBtn->setStyleSheet(btnStyle);
 	undoBtn->setStyleSheet(btnStyle);
 	redoBtn->setStyleSheet(btnStyle);
@@ -2169,7 +2482,54 @@ void WarRoomMainWindow::setupCustomUi()
 
 	// 工具栏按钮点击 -> 触发对应 action（保持单一触发源，便于统一管理）
 	connect(newBtn, &QPushButton::clicked, m_newAction, &QAction::trigger);
-	connect(openBtn, &QPushButton::clicked, m_openAction, &QAction::trigger);
+	// QToolButton: 下拉菜单 = 「打开文件...」+ 最近打开文件列表（与【文件】按钮模式一致）
+	{
+		QMenu* openMenu = new QMenu(this);
+		openMenu->setStyleSheet(darkMenuStyle);
+		connect(openMenu, &QMenu::aboutToShow, this,
+			[this, openMenu]() {
+				openMenu->clear();
+				// 第一项：打开文件...（对应当原主按钮的功能）
+				openMenu->addAction(m_openAction);
+				openMenu->addSeparator();
+				// 后续项：最近打开文件列表
+				QStringList recent = readRecentFiles();
+				if (recent.isEmpty()) {
+					QAction* emptyAct = new QAction("（没有最近打开的文件）", openMenu);
+					emptyAct->setEnabled(false);
+					openMenu->addAction(emptyAct);
+				}
+				else {
+					int idx = 1;
+					for (const QString& path : recent) {
+						QFileInfo info(path);
+						QString display;
+						if (idx <= 9)
+							display = QString("&%1  %2").arg(idx).arg(info.fileName());
+						else
+							display = QString("%1  %2").arg(idx).arg(info.fileName());
+
+						QAction* act = new QAction(display, openMenu);
+						act->setData(path);
+						act->setToolTip(path);
+
+						if (!info.exists()) {
+							act->setEnabled(false);
+							act->setText(act->text() + "  （文件已不存在）");
+						}
+
+						connect(act, &QAction::triggered, this, &WarRoomMainWindow::onOpenRecentFile);
+						openMenu->addAction(act);
+						++idx;
+					}
+				}
+				openMenu->addSeparator();
+				QAction* clearAct = new QAction("清除最近文件列表", openMenu);
+				connect(clearAct, &QAction::triggered, this, &WarRoomMainWindow::onClearRecentFiles);
+				openMenu->addAction(clearAct);
+			});
+		openBtn->setMenu(openMenu);
+	}
 	connect(saveBtn, &QPushButton::clicked, m_saveAction, &QAction::trigger);
 	connect(undoBtn, &QPushButton::clicked, m_undoAction, &QAction::trigger);
 	connect(redoBtn, &QPushButton::clicked, m_redoAction, &QAction::trigger);
@@ -2206,6 +2566,7 @@ void WarRoomMainWindow::setupCustomUi()
 	)");
 
 	QMenu* fileMenu = new QMenu(this);
+	fileMenu->setStyleSheet(darkMenuStyle);
 
 	// 另存为
 	if (!m_saveAsAction) {
@@ -2359,8 +2720,176 @@ void WarRoomMainWindow::setupCustomUi()
 	// 监听中央容器的大小变化，保持按钮在左下角
 	m_centralContainer->installEventFilter(this);
 
+	// 构建底边栏（状态栏）
+	setupStatusBar();
+
 	// 不调用 setupMenuBar()，避免布局冲突
 	// 如果需要菜单功能，可以通过右键菜单或工具栏按钮实现
+}
+
+// ============================================================
+// setupStatusBar - 构建底边栏 UI（24px，三栏 + 竖分隔线）
+// ============================================================
+void WarRoomMainWindow::setupStatusBar()
+{
+	m_statusBar = new QWidget(m_centralContainer);
+	m_statusBar->setFixedHeight(24);
+	m_statusBar->setStyleSheet(R"(
+		QWidget {
+			background-color: #2A2A2A;
+			border-top: 1px solid #3A3A3A;
+		}
+		QLabel {
+			background-color: transparent;
+			color: #CCCCCC;
+			font-size: 11px;
+			padding: 0px 10px;
+		}
+	)");
+
+	auto* sbLayout = new QHBoxLayout(m_statusBar);
+	sbLayout->setContentsMargins(0, 0, 0, 0);
+	sbLayout->setSpacing(0);
+
+	// ========== 左：上次保存时间 ==========
+	m_savedTimeLabel = new QLabel("从未保存", m_statusBar);
+	m_savedTimeLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	sbLayout->addWidget(m_savedTimeLabel, 0);
+
+	// 竖分隔线 1
+	QFrame* sep1 = new QFrame(m_statusBar);
+	sep1->setFrameShape(QFrame::VLine);
+	sep1->setStyleSheet("background-color: #3A3A3A;");
+	sep1->setFixedWidth(1);
+	sbLayout->addWidget(sep1, 0);
+
+	// ========== 中：当前文件名（● 未保存圆点） ==========
+	m_currentFileLabel = new QLabel(m_statusBar);
+	m_currentFileLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	m_currentFileLabel->setToolTip(m_currentFilePath);
+	sbLayout->addWidget(m_currentFileLabel, 1); // 中间部分占拉伸空间
+
+	// 竖分隔线 2
+	QFrame* sep2 = new QFrame(m_statusBar);
+	sep2->setFrameShape(QFrame::VLine);
+	sep2->setStyleSheet("background-color: #3A3A3A;");
+	sep2->setFixedWidth(1);
+	sbLayout->addWidget(sep2, 0);
+
+	// ========== 右：消息提示 ==========
+	m_messageLabel = new QLabel(m_statusBar);
+	m_messageLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+	m_messageLabel->setMinimumWidth(120);
+	sbLayout->addWidget(m_messageLabel, 0);
+
+	// 消息自动消失定时器
+	m_messageTimer = new QTimer(this);
+	m_messageTimer->setSingleShot(true);
+	connect(m_messageTimer, &QTimer::timeout, this, &WarRoomMainWindow::onMessageTimeout);
+
+	// 将底边栏加入主布局（中央容器主垂直布局最末尾）
+	if (auto* mainLayout = qobject_cast<QVBoxLayout*>(m_centralContainer->layout())) {
+		mainLayout->addWidget(m_statusBar);
+	}
+
+	// 初始化显示内容
+	updateCurrentFileLabel();
+	updateSavedTimeLabel();
+}
+
+// ============================================================
+// updateSavedTimeLabel - 更新「上次保存时间」显示
+// ============================================================
+void WarRoomMainWindow::updateSavedTimeLabel()
+{
+	if (!m_savedTimeLabel) return;
+	// m_currentFilePath 非空且 m_bDirty == false → 显示保存时间
+	// 实际保存时间我们用 QFileInfo(m_currentFilePath).lastModified()
+	if (!m_currentFilePath.isEmpty()) {
+		QFileInfo fi(m_currentFilePath);
+		if (fi.exists()) {
+			QDateTime t = fi.lastModified();
+			m_savedTimeLabel->setText(QString("已保存 %1").arg(t.toString("HH:mm")));
+			return;
+		}
+	}
+	m_savedTimeLabel->setText("从未保存");
+}
+
+// ============================================================
+// updateCurrentFileLabel - 更新「当前文件名」显示（含●未保存标记）
+// ============================================================
+void WarRoomMainWindow::updateCurrentFileLabel()
+{
+	if (!m_currentFileLabel) return;
+	QString text;
+	if (m_currentFilePath.isEmpty()) {
+		text = QObject::tr("未命名");
+	}
+	else {
+		QFileInfo fi(m_currentFilePath);
+		text = fi.fileName(); // 仅文件名，不带路径
+	}
+	// 未保存：前面加一个橙色 ●
+	if (m_bDirty) {
+		// 用 HTML 让圆点变成橙色，文字保持普通灰色
+		m_currentFileLabel->setText(QString("<span style='color:#FFA726;'>●</span>&nbsp;%1").arg(text.toHtmlEscaped()));
+	}
+	else {
+		m_currentFileLabel->setText(text);
+	}
+	// Tooltip 始终是完整路径（为空时不设）
+	m_currentFileLabel->setToolTip(m_currentFilePath);
+}
+
+// ============================================================
+// markDirty - 标记文档有未保存修改
+// ============================================================
+void WarRoomMainWindow::markDirty()
+{
+	if (m_bDirty) return;
+	if (m_model.isReadOnly()) return; // 只读模式不标记
+	m_bDirty = true;
+	updateCurrentFileLabel();
+}
+
+// ============================================================
+// showMessage - 在底边栏消息区显示一条提示（替代弹窗）
+// ============================================================
+void WarRoomMainWindow::showMessage(const QString& text, MessageLevel level, int durationMs)
+{
+	if (!m_messageLabel) return;
+
+	// 颜色映射
+	QString color;
+	switch (level) {
+	case MessageLevel::Success:  color = "#4CAF50"; break;
+	case MessageLevel::Warning:  color = "#FFA726"; break;
+	case MessageLevel::Error:    color = "#EF5350"; break;
+	case MessageLevel::Info:
+	default:                     color = "#CCCCCC"; break;
+	}
+
+	m_messageLabel->setText(QString("<span style='color:%1;'>%2</span>")
+		.arg(color, text.toHtmlEscaped()));
+
+	// 定时器：自动清除消息；durationMs == 0 或负数表示留着不动
+	if (durationMs > 0) {
+		m_messageTimer->start(durationMs);
+	}
+	else {
+		m_messageTimer->stop();
+	}
+}
+
+// ============================================================
+// onMessageTimeout - 消息定时器超时：清空消息区
+// ============================================================
+void WarRoomMainWindow::onMessageTimeout()
+{
+	if (m_messageLabel) {
+		m_messageLabel->clear();
+	}
 }
 
 // ============================================================
@@ -2813,6 +3342,154 @@ void WarRoomMainWindow::writeLastOpenFilePath(const QString& path)
 }
 
 // ============================================================
+// 最近打开文件列表（最多保存 10 个，按时间倒序）
+// ============================================================
+static constexpr int kMaxRecentFiles = 10;
+
+QStringList WarRoomMainWindow::readRecentFiles()
+{
+	QString cfgFile = getConfigFilePath();
+	if (!QFile::exists(cfgFile)) return {};
+
+	QSettings settings(cfgFile, QSettings::IniFormat);
+	settings.beginGroup("RecentFiles");
+
+	int count = settings.beginReadArray("list");
+	QStringList list;
+	for (int i = 0; i < count; ++i) {
+		settings.setArrayIndex(i);
+		QString path = settings.value("path").toString();
+		if (!path.isEmpty())
+			list.append(path);
+	}
+	settings.endArray();
+	settings.endGroup();
+	return list;
+}
+
+void WarRoomMainWindow::addToRecentFiles(const QString& path)
+{
+	if (path.isEmpty()) return;
+	QString absPath = QFileInfo(path).absoluteFilePath();
+	if (absPath.isEmpty()) return;
+
+	// 先读出来，去重，然后把新路径顶到最前面
+	QStringList list = readRecentFiles();
+	list.removeAll(absPath);
+	list.prepend(absPath);
+
+	// 超过上限砍掉尾部
+	while (list.size() > kMaxRecentFiles)
+		list.removeLast();
+
+	QString cfgFile = getConfigFilePath();
+	QSettings settings(cfgFile, QSettings::IniFormat);
+	settings.beginGroup("RecentFiles");
+	settings.remove("list");
+	settings.beginWriteArray("list", list.size());
+	for (int i = 0; i < list.size(); ++i) {
+		settings.setArrayIndex(i);
+		settings.setValue("path", list.at(i));
+	}
+	settings.endArray();
+	settings.endGroup();
+	settings.sync();
+}
+
+void WarRoomMainWindow::clearRecentFiles()
+{
+	QString cfgFile = getConfigFilePath();
+	QSettings settings(cfgFile, QSettings::IniFormat);
+	settings.beginGroup("RecentFiles");
+	settings.remove("list");
+	settings.endGroup();
+	settings.sync();
+}
+
+void WarRoomMainWindow::populateRecentFilesMenu(QMenu* menu)
+{
+	if (!menu) return;
+	menu->clear();
+
+	QStringList recent = readRecentFiles();
+	if (recent.isEmpty()) {
+		QAction* emptyAct = new QAction("（没有最近打开的文件）", menu);
+		emptyAct->setEnabled(false);
+		menu->addAction(emptyAct);
+		return;
+	}
+
+	int idx = 1;
+	for (const QString& path : recent) {
+		QFileInfo info(path);
+		QString display;
+		if (idx <= 9)
+			display = QString("&%1  %2").arg(idx).arg(info.fileName());
+		else
+			display = QString("%1  %2").arg(idx).arg(info.fileName());
+
+		QAction* act = new QAction(display, menu);
+		act->setData(path);
+		act->setToolTip(path);
+
+		if (!info.exists()) {
+			act->setEnabled(false);
+			act->setText(act->text() + "  （文件已不存在）");
+		}
+
+		connect(act, &QAction::triggered, this, &WarRoomMainWindow::onOpenRecentFile);
+		menu->addAction(act);
+		++idx;
+	}
+
+	menu->addSeparator();
+	QAction* clearAct = new QAction("清除最近文件列表", menu);
+	connect(clearAct, &QAction::triggered, this, &WarRoomMainWindow::onClearRecentFiles);
+	menu->addAction(clearAct);
+}
+
+void WarRoomMainWindow::onOpenRecentFile()
+{
+	auto* act = qobject_cast<QAction*>(sender());
+	if (!act) return;
+	QString path = act->data().toString();
+	if (path.isEmpty()) return;
+
+	if (!maybeSave()) return;
+
+	if (!QFileInfo::exists(path)) {
+		showMessage(QString("文件已不存在：%1").arg(QFileInfo(path).fileName()),
+			MessageLevel::Warning, 5000);
+		// 顺手把这条不存在的记录从列表里删掉（下次菜单就不会再显示了）
+		QStringList list = readRecentFiles();
+		list.removeAll(path);
+		QString cfgFile = getConfigFilePath();
+		QSettings settings(cfgFile, QSettings::IniFormat);
+		settings.beginGroup("RecentFiles");
+		settings.remove("list");
+		settings.beginWriteArray("list", list.size());
+		for (int i = 0; i < list.size(); ++i) {
+			settings.setArrayIndex(i);
+			settings.setValue("path", list.at(i));
+		}
+		settings.endArray();
+		settings.endGroup();
+		settings.sync();
+		return;
+	}
+	loadFromFilePath(path);
+}
+
+void WarRoomMainWindow::onClearRecentFiles()
+{
+	auto btn = QMessageBox::question(this, "清除最近文件",
+		"确定要清除最近打开的文件列表吗？",
+		QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+	if (btn != QMessageBox::Yes) return;
+	clearRecentFiles();
+}
+
+// ============================================================
 // 从指定路径加载 .warroom 文件（共享给启动逻辑与按钮逻辑）
 // ============================================================
 void WarRoomMainWindow::loadFromFilePath(const QString& path)
@@ -2831,6 +3508,8 @@ void WarRoomMainWindow::loadFromFilePath(const QString& path)
 		m_model = std::move(newModel);
 		m_currentFilePath = path;
 		writeLastOpenFilePath(path);
+		addToRecentFiles(path);
+		m_bDirty = false;
 
 		m_model.normalizeZValues();
 
@@ -2846,6 +3525,16 @@ void WarRoomMainWindow::loadFromFilePath(const QString& path)
 
 		refreshSidebarTree();
 		refreshTodoSidebar();
+
+		// 刷新底边栏
+		updateSavedTimeLabel();
+		updateCurrentFileLabel();
+		showMessage(QString("已加载 %1").arg(QFileInfo(path).fileName()),
+			MessageLevel::Info, 3000);
+	}
+	else {
+		showMessage(QString("加载失败：%1").arg(QFileInfo(path).fileName()),
+			MessageLevel::Error, 8000);
 	}
 }
 
@@ -3447,6 +4136,45 @@ void WarRoomMainWindow::onSettingsClicked()
 	configDirEdit->setReadOnly(true);
 	configDirEdit->setText(getConfigDir());
 	generalLayout->addWidget(configDirEdit);
+
+	generalLayout->addSpacing(6);
+
+	// ---- 当前文档统计数据 ----
+	QLabel* statsTitle = new QLabel("文档信息", generalPage);
+	statsTitle->setStyleSheet("color: #AAAAAA; font-size: 11px; font-weight: bold;");
+	generalLayout->addWidget(statsTitle);
+
+	QWidget* statsRow = new QWidget(generalPage);
+	auto* statsRowLayout = new QHBoxLayout(statsRow);
+	statsRowLayout->setContentsMargins(0, 0, 0, 0);
+	statsRowLayout->setSpacing(8);
+
+	QLabel* statsLabel = new QLabel("当前文档统计数据", statsRow);
+	statsRowLayout->addWidget(statsLabel, 1);
+
+	QPushButton* statsBtn = new QPushButton("查看", statsRow);
+	statsBtn->setFixedHeight(28);
+	statsBtn->setStyleSheet(R"(
+		QPushButton {
+			background-color: #2A5A8A;
+			color: #CCCCCC;
+			border: none;
+			padding: 4px 14px;
+			border-radius: 3px;
+		}
+		QPushButton:hover {
+			background-color: #3A6A9A;
+			color: #FFFFFF;
+		}
+		QPushButton:pressed {
+			background-color: #1A4A7A;
+		}
+	)");
+	statsRowLayout->addWidget(statsBtn);
+	QObject::connect(statsBtn, &QPushButton::clicked, this,
+		&WarRoomMainWindow::onShowDocumentStats);
+
+	generalLayout->addWidget(statsRow);
 
 	generalLayout->addSpacing(6);
 	generalLayout->addStretch();

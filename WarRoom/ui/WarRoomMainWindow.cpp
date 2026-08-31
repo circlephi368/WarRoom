@@ -2041,7 +2041,7 @@ void WarRoomMainWindow::contextMenuEvent(QContextMenuEvent* event)
 		};
 
 		std::vector<ColorPreset> presets = {
-			{"默认", "#FF888888"},
+			{"默认", "#FF606060"},
 			{"红色", "#FFE74C3C"},
 			{"绿色", "#FF2ECC71"},
 			{"蓝色", "#FF3498DB"},

@@ -156,11 +156,9 @@ void NodeGraphicsItem::createInlineEditor() {
 
 	// 设置 palette 文本颜色，确保删除全部文本后重新输入也使用设置的颜色
 	// （mergeCharFormat 仅影响已有文本，新输入的默认色由 palette 决定）
-	{
-		QPalette pal = customEdit->palette();
-		pal.setColor(QPalette::Text, m_textColor);
-		customEdit->setPalette(pal);
-	}
+	// 注意：必须在 setWidget() 之后设置，否则 proxy 会覆盖 palette；
+	// 且需显式设置 viewport 的 palette，光标颜色由 viewport palette 决定
+	// 此调用在下方 setWidget 之后执行
 
 	// 统一编辑器所有文本块的行距和段落间距，与预览模式保持一致
 	{
@@ -177,8 +175,16 @@ void NodeGraphicsItem::createInlineEditor() {
 	m_editorProxy = new QGraphicsProxyWidget(this);
 	m_editorProxy->setWidget(customEdit);
 	m_editorProxy->setPos(m_textPadding, m_textPadding);
-	m_editorProxy->setZValue(100);
 	m_editorProxy->resize(getWidth() - m_textPadding * 2, getHeight() - m_textPadding * 2);
+	m_editorProxy->setZValue(100);
+
+	// setWidget 之后显式设置 palette（含 viewport），确保光标颜色正确
+	{
+		QPalette pal = customEdit->palette();
+		pal.setColor(QPalette::Text, m_textColor);
+		customEdit->setPalette(pal);
+		customEdit->viewport()->setPalette(pal);
+	}
 
 	customEdit->setFocus();
 	customEdit->installEventFilter(this);
@@ -626,6 +632,7 @@ void NodeGraphicsItem::refreshFont(const QFont& font)
 		QPalette pal = m_textEdit->palette();
 		pal.setColor(QPalette::Text, m_textColor);
 		m_textEdit->setPalette(pal);
+		m_textEdit->viewport()->setPalette(pal);
 	}
 	update(); // 重绘
 }
@@ -649,6 +656,7 @@ void NodeGraphicsItem::refreshTextColor(const QColor& color)
 		QPalette pal = m_textEdit->palette();
 		pal.setColor(QPalette::Text, m_textColor);
 		m_textEdit->setPalette(pal);
+		m_textEdit->viewport()->setPalette(pal);
 	}
 	update(); // 重绘
 }

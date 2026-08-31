@@ -82,7 +82,9 @@ namespace warroom {
 
 	// 颜色（简化为十六进制字符串）
 	using Color = std::string;
-	constexpr const char* kDefaultNodeColor = "#FF888888";
+	// 注：避免使用接近中灰(128)的值——Windows 鼠标光标/caret 颜色为背景反色，
+	// 中灰反色后仍为灰且亮度接近，导致光标几乎与背景融为一体。
+	constexpr const char* kDefaultNodeColor = "#FF606060";
 	constexpr const char* kDefaultLinkColor = "#FFaaaaaa";
 
 	// 时间戳

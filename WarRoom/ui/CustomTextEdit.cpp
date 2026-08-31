@@ -24,9 +24,6 @@ void CustomTextEdit::prepareForDestruction()
 void CustomTextEdit::setTransparentMode(bool transparent) {
 	if (!m_isValid) return;
 	m_transparentMode = transparent;
-	if (m_transparentMode) {
-		setStyleSheet("QTextEdit { background: transparent; }");
-	}
 	update();
 }
 
@@ -57,7 +54,6 @@ void CustomTextEdit::focusInEvent(QFocusEvent* event) {
 	}
 	QTextEdit::focusInEvent(event);
 	m_transparentMode = false;
-	setStyleSheet("QTextEdit { background: transparent; }");
 }
 
 void CustomTextEdit::focusOutEvent(QFocusEvent* event) {
@@ -67,7 +63,6 @@ void CustomTextEdit::focusOutEvent(QFocusEvent* event) {
 	}
 	QTextEdit::focusOutEvent(event);
 	m_transparentMode = true;
-	setStyleSheet("QTextEdit { background: transparent; }");
 }
 
 void CustomTextEdit::contextMenuEvent(QContextMenuEvent* event) {

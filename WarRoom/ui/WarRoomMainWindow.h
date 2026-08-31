@@ -255,6 +255,8 @@ private:
 
 	// ---- 父子关系 ----
 	void reparentNode(const std::string& nodeId, const std::string& newParentId);
+	// 计算并应用单个节点的父子归属（被单选/多选共用）
+	void computeAndApplyReparent(const std::string& nodeId);
 
 	// ---- 子树位置更新 ----
 	void updateSubtreePositionRecursive(const std::string& nodeId);

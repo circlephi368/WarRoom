@@ -6,6 +6,7 @@
 #include <iostream>
 #include <functional>
 #include <algorithm>
+#include <climits>
 
 // Qt 头文件
 #include <QFileDialog>
@@ -22,6 +23,7 @@
 #include <QFileInfo>
 #include <QCoreApplication>
 #include <QSettings>
+#include <QSet>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -763,33 +765,88 @@ void WarRoomMainWindow::onResetView()
 void WarRoomMainWindow::onNodeSelectedForZBoost(const std::string& nodeId)
 {
 	if (m_model.isReadOnly()) return;
-	warroom::WarNode* node = m_model.getNodeMutable(nodeId);
-	if (!node) return;
+	if (!m_model.getNodeMutable(nodeId)) return;
 
-	// 获取父节点的 absolute_z（document_root 的子节点：父节点 absolute_z = 0）
-	warroom::Uuid parentId = node->parent_id;
-	int parentAbsZ = 0;
-	if (!parentId.empty() && parentId != m_model.getDocumentRootId()) {
-		parentAbsZ = m_model.computeAbsoluteZ(parentId);
+	// 收集需要提升 Z 值的节点。
+	// 注意：mousePressEvent 触发时，scene 的选中状态尚未更新，
+	// selectedItems() 返回的是旧的选中集合。
+	QSet<QString> idSet;
+	for (QGraphicsItem* it : m_scene->selectedItems()) {
+		if (NodeGraphicsItem* n = qgraphicsitem_cast<NodeGraphicsItem*>(it)) {
+			idSet.insert(QString::fromStdString(n->nodeId()));
+		}
 	}
 
-	// 目标 absolute_z = 全局最大 + 1（保证全局置顶）
-	int targetAbsZ = m_model.getMaxAbsZ() + 1;
+	// 判断场景：
+	// - 被点击节点之前未选中 且 无多选修饰键(Ctrl/Shift) → "替换选中"
+	//   此时旧选中集合中的节点会被 Qt 取消选中，只应提升被点击的 nodeId
+	// - 否则（多选修饰键，或点击已选中节点拖动）→ 提升整个选中集合
+	bool wasSelected = idSet.contains(QString::fromStdString(nodeId));
+	Qt::KeyboardModifiers mods = QApplication::keyboardModifiers();
+	bool isMultiSelectKey = (mods & Qt::ControlModifier) || (mods & Qt::ShiftModifier);
 
-	// 设置 relative_z，使得 sum(路径) = targetAbsZ
-	node->relative_z = targetAbsZ - parentAbsZ;
+	if (!wasSelected && !isMultiSelectKey) {
+		// 替换选中：只提升被点击的节点，忽略旧选中集合中的其他节点
+		idSet.clear();
+		idSet.insert(QString::fromStdString(nodeId));
+	}
+	else {
+		// 多选或拖动已选中：提升旧选中集合 + 被点击节点
+		idSet.insert(QString::fromStdString(nodeId));
+	}
 
-	// 更新该节点及其所有子孙的 Z 值（使视图立即反映变化，避免闪烁）
-	updateSubtreeZValues(nodeId);
+	// 找出选中集合中的"根"：父节点不在选中集合中
+	// 只对根节点操作，子孙会随父节点 relative_z 的改变而整体平移，
+	// 从而保持选中集合内部的相对层级关系不变
+	QList<std::string> roots;
+	for (const QString& idStr : idSet) {
+		std::string id = idStr.toStdString();
+		const warroom::WarNode* n = m_model.getNode(id);
+		if (!n) continue;
+		if (!idSet.contains(QString::fromStdString(n->parent_id))) {
+			roots.append(id);
+		}
+	}
+
+	// 递归计算子树中所有节点的 absolute_z 最小值
+	std::function<int(const std::string&)> subtreeMinAbsZ =
+		[&](const std::string& id) -> int {
+			int minAbs = m_model.computeAbsoluteZ(id);
+			for (const auto& childId : m_model.getChildren(id)) {
+				int childMin = subtreeMinAbsZ(childId);
+				if (childMin < minAbs) minAbs = childMin;
+			}
+			return minAbs;
+		};
+
+	// 计算选中集合（含所有根子树）的最小和最大 absolute_z
+	int selectedMinAbsZ = INT_MAX;
+	int selectedMaxAbsZ = INT_MIN;
+	for (const std::string& id : roots) {
+		int subtreeMin = subtreeMinAbsZ(id);
+		int subtreeMax = m_model.computeSubtreeMaxAbsZ(id);
+		if (subtreeMin < selectedMinAbsZ) selectedMinAbsZ = subtreeMin;
+		if (subtreeMax > selectedMaxAbsZ) selectedMaxAbsZ = subtreeMax;
+	}
+
+	// 偏移量：使选中集合中 Z 值最低的节点也上移到全局最大 + 1 之上
+	// 所有根加相同 offset → 选中集合内部 relative_z 差异不变 → 内部层级保持
+	int offset = (m_model.getMaxAbsZ() + 1) - selectedMinAbsZ;
+
+	// 对每个根节点，relative_z 增加相同偏移量
+	for (const std::string& id : roots) {
+		warroom::WarNode* n = m_model.getNodeMutable(id);
+		if (n) {
+			n->relative_z += offset;
+			updateSubtreeZValues(id);
+		}
+	}
+
 	refreshAllLinksZValue();
 	refreshLinks();
 
-	// 维护全局最大 z：必须取子树（含自身）的最大 absolute_z，
-	// 因为子节点的 absolute_z = node.absolute_z + descendant_relative_z之和
-	// 可能大于 node.absolute_z 本身
-	int subtreeMax = m_model.computeSubtreeMaxAbsZ(
-		warroom::Uuid(nodeId));
-	m_model.setMaxAbsZ(subtreeMax);
+	// 新的全局最大 z = 选中集合顶部上移后的值
+	m_model.setMaxAbsZ(selectedMaxAbsZ + offset);
 
 	// 更新焦点指示器
 	auto* item = m_nodeItems.value(QString::fromStdString(nodeId));
@@ -1365,36 +1422,66 @@ void WarRoomMainWindow::onNodeMoveFinished(const std::string& nodeId,
 	auto cmd = std::make_unique<warroom::MoveNodeCommand>(nodeId, oldX, oldY, newX, newY);
 	executeCommand(std::move(cmd));
 
-	// 检查是否需要改变父节点
-	NodeGraphicsItem* item = m_nodeItems.value(QString::fromStdString(nodeId));
-	if (item) {
-		QPointF center = item->sceneBoundingRect().center();
-		std::string targetId = findTopmostNodeAtPoint(center, nodeId);
-
-		if (!targetId.empty() && targetId != node->parent_id) {
-			// 检查目标是否是当前节点的后代
-			bool isDescendant = false;
-			warroom::Uuid checkId = targetId;
-			while (!checkId.empty() && checkId != m_model.getDocumentRootId()) {
-				if (checkId == nodeId) {
-					isDescendant = true;
-					break;
-				}
-				const warroom::WarNode* checkNode = m_model.getNode(checkId);
-				if (!checkNode) break;
-				checkId = checkNode->parent_id;
-			}
-
-			if (!isDescendant) {
-				reparentNode(nodeId, targetId);
-			}
-		}
-		else if (targetId.empty() && node->parent_id != m_model.getDocumentRootId()) {
-			reparentNode(nodeId, m_model.getDocumentRootId());
+	// 父子关系计算：单选只算当前节点；多选只算选中集合中的"根"（父不在选中集合中的节点），
+	// 避免选中集合内部已有父子关系时逐个计算导致归属结果依赖处理顺序。
+	QList<QGraphicsItem*> sel = m_scene->selectedItems();
+	QSet<QString> selIds;
+	for (QGraphicsItem* it : sel) {
+		if (NodeGraphicsItem* n = qgraphicsitem_cast<NodeGraphicsItem*>(it)) {
+			selIds.insert(QString::fromStdString(n->nodeId()));
 		}
 	}
 
+	if (selIds.size() > 1) {
+		// 多选：只刷新选中集合中的根节点
+		for (const QString& idStr : selIds) {
+			std::string id = idStr.toStdString();
+			const warroom::WarNode* n = m_model.getNode(id);
+			if (!n) continue;
+			if (selIds.contains(QString::fromStdString(n->parent_id))) continue; // 父也在选中集合中 → 非根，跳过
+			computeAndApplyReparent(id);
+		}
+	}
+	else {
+		// 单选
+		computeAndApplyReparent(nodeId);
+	}
+
 	refreshLinks();
+}
+
+void WarRoomMainWindow::computeAndApplyReparent(const std::string& nodeId)
+{
+	warroom::WarNode* node = m_model.getNodeMutable(nodeId);
+	if (!node) return;
+
+	NodeGraphicsItem* item = m_nodeItems.value(QString::fromStdString(nodeId));
+	if (!item) return;
+
+	QPointF center = item->sceneBoundingRect().center();
+	std::string targetId = findTopmostNodeAtPoint(center, nodeId);
+
+	if (!targetId.empty() && targetId != node->parent_id) {
+		// 检查目标是否是当前节点的后代
+		bool isDescendant = false;
+		warroom::Uuid checkId = targetId;
+		while (!checkId.empty() && checkId != m_model.getDocumentRootId()) {
+			if (checkId == nodeId) {
+				isDescendant = true;
+				break;
+			}
+			const warroom::WarNode* checkNode = m_model.getNode(checkId);
+			if (!checkNode) break;
+			checkId = checkNode->parent_id;
+		}
+
+		if (!isDescendant) {
+			reparentNode(nodeId, targetId);
+		}
+	}
+	else if (targetId.empty() && node->parent_id != m_model.getDocumentRootId()) {
+		reparentNode(nodeId, m_model.getDocumentRootId());
+	}
 }
 
 // ============================================================================
@@ -1641,6 +1728,9 @@ void WarRoomMainWindow::reparentNode(const std::string& nodeId,
 		node->rel_y = absY;
 	}
 
+	// 父子关系变更后，absolute_z（父链 relative_z 之和）可能改变，
+	// 必须刷新该节点子树的 QGraphicsItem::zValue，否则显示层级与 model 不一致
+	updateSubtreeZValues(nodeId);
 	refreshLinks();
 	rebuildAllBoundingRects();
 }
@@ -2041,7 +2131,7 @@ void WarRoomMainWindow::contextMenuEvent(QContextMenuEvent* event)
 		};
 
 		std::vector<ColorPreset> presets = {
-			{"默认", "#FF888888"},
+			{"默认", "#FF606060"},
 			{"红色", "#FFE74C3C"},
 			{"绿色", "#FF2ECC71"},
 			{"蓝色", "#FF3498DB"},
@@ -2809,11 +2899,14 @@ void WarRoomMainWindow::updateSavedTimeLabel()
 		QFileInfo fi(m_currentFilePath);
 		if (fi.exists()) {
 			QDateTime t = fi.lastModified();
+			// 底边栏只显示「时:分」，鼠标悬停 tooltip 显示完整时间（年月日时分秒）
 			m_savedTimeLabel->setText(QString("已保存 %1").arg(t.toString("HH:mm")));
+			m_savedTimeLabel->setToolTip(t.toString("yyyy-MM-dd HH:mm:ss"));
 			return;
 		}
 	}
 	m_savedTimeLabel->setText("从未保存");
+	m_savedTimeLabel->setToolTip("");
 }
 
 // ============================================================

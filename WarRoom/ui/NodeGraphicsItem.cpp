@@ -15,7 +15,7 @@
 NodeGraphicsItem::NodeGraphicsItem(const std::string& nodeId, warroom::WarRoomModel* model, QGraphicsItem* parent)
 	: QGraphicsObject(parent), m_nodeId(nodeId), m_model(model)
 {
-	setFlags(ItemIsSelectable | ItemIsMovable | ItemSendsGeometryChanges);
+	setFlags(ItemIsSelectable | ItemIsMovable | ItemSendsGeometryChanges | ItemIsFocusable);
 	setAcceptHoverEvents(true);
 	setAcceptDrops(true);
 	createAnchors();
@@ -813,6 +813,18 @@ void NodeGraphicsItem::createBrowserWidget()
 
 	updateBrowserGeometry();
 	update();
+
+	// 通知视图：模组已激活嵌入 widget，键盘事件应交给 widget 处理
+	if (auto* s = scene()) {
+		if (!s->views().isEmpty()) {
+			if (auto* view = qobject_cast<WarRoomView*>(s->views().first())) {
+				view->setModCapturesKeyboard(true);
+			}
+		}
+	}
+
+	// 让嵌入 widget 获得键盘焦点，确保 WASD 等键输入到网页而非移动画布
+	browserWidget->setFocus();
 }
 
 void NodeGraphicsItem::destroyBrowserWidget()
@@ -855,6 +867,50 @@ void NodeGraphicsItem::destroyBrowserWidget()
 	delete m_browserProxy;
 	m_browserProxy = nullptr;
 	update();
+
+	// 通知视图：嵌入 widget 已销毁，恢复画布键盘处理
+	if (auto* s = scene()) {
+		if (!s->views().isEmpty()) {
+			if (auto* view = qobject_cast<WarRoomView*>(s->views().first())) {
+				view->setModCapturesKeyboard(false);
+			}
+		}
+	}
+}
+
+void NodeGraphicsItem::requestEmbeddedWidgetSync()
+{
+	// 检查当前是否有模组希望显示嵌入 widget
+	bool anyActive = false;
+	const warroom::WarNode* node = getNode();
+	if (node) {
+		auto& mm = warroom::ModManager::instance();
+		if (!node->primary_mod_type.empty()) {
+			if (warroom::NodeMod* mod = mm.getMod(node->primary_mod_type)) {
+				void* data = mm.getPrimaryPrivate(node);
+				if (mod->hasEmbeddedWidget() && mod->isEmbeddedWidgetActive(data)) {
+					anyActive = true;
+				}
+			}
+		}
+		if (!anyActive) {
+			for (const auto& modType : node->auxiliary_mod_types) {
+				if (warroom::NodeMod* mod = mm.getMod(modType)) {
+					void* data = mm.getNodePrivate(node, modType);
+					if (mod->hasEmbeddedWidget() && mod->isEmbeddedWidgetActive(data)) {
+						anyActive = true;
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	if (anyActive && !m_browserProxy) {
+		createBrowserWidget();
+	} else if (!anyActive && m_browserProxy) {
+		destroyBrowserWidget();
+	}
 }
 
 void NodeGraphicsItem::updateBrowserGeometry()
@@ -938,7 +994,8 @@ void NodeGraphicsItem::keyPressEvent(QKeyEvent* event)
 		}
 	}
 
-	QGraphicsObject::keyPressEvent(event);
+	// 模组未消费事件：忽略，让其沿责任链传播到画布（WarRoomView）处理
+	event->ignore();
 }
 
 // ==================== 悬停事件 ====================
@@ -1045,6 +1102,8 @@ bool NodeGraphicsItem::eventFilter(QObject* watched, QEvent* event) {
 				}
 				destroyBrowserWidget();
 				update();
+				// 退出浏览模式后，将焦点退回到无焦点状态（操作信号回到软件本身）
+				emit escapeFromBrowseMode();
 				event->accept();
 				return true;
 			}
@@ -1262,6 +1321,9 @@ void NodeGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
 		// 准备拖动：提升所有选中节点的 Z 值（无论当前节点是否已选中）
 		// 多选拖动时点击的是已选中节点，必须在这里触发才能让整个选中组置顶
 		emit selectedForZBoost(m_nodeId);
+
+		// 设置键盘焦点到本节点，使模组能接收键盘事件（责任链：节点→画布）
+		setFocus(Qt::MouseFocusReason);
 
 		// 拖拽节点位置
 		m_dragStartX = static_cast<float>(pos().x());

@@ -150,6 +150,23 @@ public:
 	void setIsEditing(bool editing) { m_isEditing = editing; }
 	bool isEditing() const { return m_isEditing; }
 
+	// ---- 模组键盘捕获标志 ----
+	// 当模组（如 Web 浏览器）激活嵌入 widget 时，键盘事件应交给 widget 处理。
+	// 此标志为 true 时，WASD/方向键不平移画布，事件交给基类路由到场景中焦点项。
+	void setModCapturesKeyboard(bool b) {
+		m_modCapturesKeyboard = b;
+		if (b) {
+			// 进入模组捕获模式时，清除残留的平移/空格状态，防止键释放事件丢失导致持续平移
+			m_keyPanMask = 0;
+			if (m_keyPanTimer.isActive()) m_keyPanTimer.stop();
+			m_spacePressed = false;
+			m_spacePanActive = false;
+			m_middleButtonPressed = false;
+			setCursor(Qt::ArrowCursor);
+		}
+	}
+	bool modCapturesKeyboard() const { return m_modCapturesKeyboard; }
+
 	// ---- 注入动画器（用于平滑平移和缩放）----
 	void setAnimator(CameraAnimator* animator) { m_animator = animator; }
 
@@ -322,6 +339,13 @@ signals:
 	void userPanStarted();
 	// 视图失去焦点
 	void viewFocusLost();
+	// Esc 键按下：通知主窗口将焦点退回到无焦点状态
+	void escapePressed();
+	// 节点未消费键盘事件时，画布执行默认操作（责任链回流）
+	void undoRequested();
+	void redoRequested();
+	void deleteRequested();
+	void newRequested();
 
 protected:
 	void wheelEvent(QWheelEvent* event) override
@@ -415,8 +439,16 @@ protected:
 	void keyPressEvent(QKeyEvent* event) override
 	{
 		// 节点处于编辑模式时，全部交给基类，避免影响文本输入
-		if (m_isEditing) {
+		// 模组激活嵌入 widget 时同理：键盘事件应路由到场景中焦点项（QWebEngineView）
+		if (m_isEditing || m_modCapturesKeyboard) {
 			QGraphicsView::keyPressEvent(event);
+			return;
+		}
+
+		// Esc：任何时候都将焦点退回到无焦点状态（操作信号回到软件本身）
+		if (event->key() == Qt::Key_Escape && !event->isAutoRepeat()) {
+			emit escapePressed();
+			event->accept();
 			return;
 		}
 
@@ -465,11 +497,29 @@ protected:
 		}
 
 		QGraphicsView::keyPressEvent(event);
+
+		// 责任链回流：若节点未消费事件，画布执行默认操作
+		// （QAction 快捷键在节点焦点时已被 stashCanvasShortcuts 禁用，需手动触发）
+		if (!event->isAccepted()) {
+			if (event->matches(QKeySequence::Undo)) {
+				emit undoRequested();
+				event->accept();
+			} else if (event->matches(QKeySequence::Redo)) {
+				emit redoRequested();
+				event->accept();
+			} else if (event->key() == Qt::Key_Delete) {
+				emit deleteRequested();
+				event->accept();
+			} else if (event->matches(QKeySequence::New)) {
+				emit newRequested();
+				event->accept();
+			}
+		}
 	}
 
 	void keyReleaseEvent(QKeyEvent* event) override
 	{
-		if (m_isEditing) {
+		if (m_isEditing || m_modCapturesKeyboard) {
 			QGraphicsView::keyReleaseEvent(event);
 			return;
 		}
@@ -680,6 +730,7 @@ private:
 	QTimer m_keyPanTimer;              // 持续平移定时器
 
 	bool m_isEditing = false;          // 是否有节点处于编辑模式（由 WarRoomMainWindow 设置）
+	bool m_modCapturesKeyboard = false; // 模组是否捕获键盘（如 Web 浏览器激活时）
 
 	CameraAnimator* m_animator = nullptr;  // 相机动画器（用于平滑平移和缩放）
 };

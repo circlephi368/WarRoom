@@ -71,6 +71,10 @@ public:
 	// 获取节点ID
 	const std::string& nodeId() const { return m_nodeId; }
 
+	// 同步嵌入 widget 状态：检查模组是否仍需要嵌入 widget，按需创建/销毁
+	// 在模组焦点变化（onFocusGained/Lost）后由主窗口调用
+	void requestEmbeddedWidgetSync();
+
 	// 获取节点尺寸（直接从模型获取）
 	float getWidth() const;
 	float getHeight() const;
@@ -140,6 +144,8 @@ signals:
 	//编辑请求信号
 	void editRequested(const std::string& nodeId);
 	void editFinished(const std::string& nodeId);
+	// 浏览模式下按 Esc：退出浏览模式并通知主窗口退回无焦点状态
+	void escapeFromBrowseMode();
 	// 节点标题被修改（由右键菜单"选词设标题"/"重命名标题"触发）
 	void titleChanged(const std::string& nodeId);
 protected:

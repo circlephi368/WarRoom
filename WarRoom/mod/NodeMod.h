@@ -85,6 +85,18 @@ namespace warroom {
 		virtual void onNodeLoaded(WarNode* node, void* modData) {}
 		virtual void onNodeSaved(WarNode* node, void* modData) {}
 
+		// ========== 焦点指示器变化 ==========
+		// 当节点的"焦点指示器"到达/离开时调用（由主窗口在焦点切换时通知）
+		// 模组可在此管理资源密集型组件（如 QWebEngineView）的生命周期：
+		//   - onFocusGained：可显示"点击开始浏览"覆盖层，但不立即创建嵌入 widget
+		//   - onFocusLost：若处于浏览模式，应退出浏览并销毁嵌入 widget
+		virtual void onFocusGained(const WarNode* node, void* modData) {
+			Q_UNUSED(node); Q_UNUSED(modData);
+		}
+		virtual void onFocusLost(const WarNode* node, void* modData) {
+			Q_UNUSED(node); Q_UNUSED(modData);
+		}
+
 		// ========== 序列化 ==========
 		virtual nlohmann::json serialize(void* modData) const { return {}; }
 		virtual void deserialize(void* modData, const nlohmann::json& data) {}

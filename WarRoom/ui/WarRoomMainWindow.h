@@ -15,6 +15,8 @@
 #include <qcolor.h>
 #include <QResizeEvent>
 #include <QStringList>
+#include <QAction>
+#include <QKeySequence>
 
 // 项目核心
 #include "core/command/undo_manager.h"
@@ -180,6 +182,17 @@ private slots:
 	void updateFocusOnCanvas();
 	void updateFocusNoFocus(const QString& reason);
 	void updateCanvasAreaForOverlay();
+	// 通知节点上所有模组焦点到达/离开，并同步嵌入 widget 状态
+	void notifyModsFocusGained(NodeGraphicsItem* item);
+	void notifyModsFocusLost(NodeGraphicsItem* item);
+
+	// ---- 键盘焦点管理（操作信号路由）----
+	// 当前键盘焦点状态：决定键盘事件由谁接收
+	FocusState keyboardFocusState() const { return m_keyboardFocusState; }
+	NodeGraphicsItem* focusedNodeItem() const { return m_focusedNodeItem; }
+	// 临时保存/恢复画布级 QAction 的快捷键（节点焦点时禁用 undo/redo/delete/new）
+	void stashCanvasShortcuts();
+	void restoreCanvasShortcuts();
 
 	// 帮助
 	void onAbout();             // 关于
@@ -346,6 +359,16 @@ private:
 	QAction* m_undoAction = nullptr;
 	QAction* m_redoAction = nullptr;
 	QAction* m_deleteAction = nullptr;
+
+	// ---- 键盘焦点管理 ----
+	FocusState m_keyboardFocusState = FocusState::CanvasFocus;  // 当前键盘焦点状态
+	NodeGraphicsItem* m_focusedNodeItem = nullptr;              // 当前焦点节点（NodeFocus 时有效）
+	// 节点焦点时临时保存被禁用的画布级 QAction 快捷键
+	QKeySequence m_savedShortcutNew;
+	QKeySequence m_savedShortcutUndo;
+	QKeySequence m_savedShortcutRedo;
+	QKeySequence m_savedShortcutDelete;
+	bool m_shortcutsStashed = false;
 
 
 

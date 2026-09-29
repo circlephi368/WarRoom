@@ -871,22 +871,113 @@ void WarRoomMainWindow::onNodeSelectedForZBoost(const std::string& nodeId)
 void WarRoomMainWindow::updateFocusOnNode(NodeGraphicsItem* item)
 {
 	if (!m_highlightOverlay || !item || !m_view) return;
+
+	// 通知旧焦点节点（若与新节点不同）的模组失去焦点
+	if (m_focusedNodeItem && m_focusedNodeItem != item) {
+		notifyModsFocusLost(m_focusedNodeItem);
+	}
+
 	m_highlightOverlay->setFocusState(FocusState::NodeFocus, item);
 	updateCanvasAreaForOverlay();
+
+	// 同步键盘焦点状态：节点获得键盘焦点，禁用画布级快捷键
+	m_keyboardFocusState = FocusState::NodeFocus;
+	m_focusedNodeItem = item;
+	stashCanvasShortcuts();
+
+	// 通知新焦点节点的模组获得焦点
+	notifyModsFocusGained(item);
 }
 
 void WarRoomMainWindow::updateFocusOnCanvas()
 {
 	if (!m_highlightOverlay) return;
+
+	// 通知旧焦点节点的模组失去焦点
+	if (m_focusedNodeItem) {
+		notifyModsFocusLost(m_focusedNodeItem);
+	}
+
 	m_highlightOverlay->setFocusState(FocusState::CanvasFocus);
 	updateCanvasAreaForOverlay();
+
+	// 同步键盘焦点状态：画布获得键盘焦点，恢复画布级快捷键
+	m_keyboardFocusState = FocusState::CanvasFocus;
+	m_focusedNodeItem = nullptr;
+	restoreCanvasShortcuts();
 }
 
 void WarRoomMainWindow::updateFocusNoFocus(const QString& reason)
 {
 	if (!m_highlightOverlay) return;
+
+	// 通知旧焦点节点的模组失去焦点
+	if (m_focusedNodeItem) {
+		notifyModsFocusLost(m_focusedNodeItem);
+	}
+
 	m_highlightOverlay->setFocusState(FocusState::NoFocus);
 	m_highlightOverlay->setExternalFocusName(reason);
+
+	// 同步键盘焦点状态：无焦点，恢复画布级快捷键
+	m_keyboardFocusState = FocusState::NoFocus;
+	m_focusedNodeItem = nullptr;
+	restoreCanvasShortcuts();
+}
+
+// ============================================================================
+// 模组焦点通知
+// ============================================================================
+void WarRoomMainWindow::notifyModsFocusGained(NodeGraphicsItem* item)
+{
+	if (!item) return;
+	const warroom::WarNode* node = m_model.getNode(item->nodeId());
+	if (!node) return;
+
+	auto& mm = warroom::ModManager::instance();
+	// 主模组
+	if (!node->primary_mod_type.empty()) {
+		if (warroom::NodeMod* mod = mm.getMod(node->primary_mod_type)) {
+			void* data = mm.getPrimaryPrivate(node);
+			mod->onFocusGained(node, data);
+		}
+	}
+	// 辅助模组
+	for (const auto& modType : node->auxiliary_mod_types) {
+		if (warroom::NodeMod* mod = mm.getMod(modType)) {
+			void* data = mm.getNodePrivate(node, modType);
+			mod->onFocusGained(node, data);
+		}
+	}
+
+	// 通知后同步嵌入 widget 状态（模组可能已在回调中改变状态）
+	item->requestEmbeddedWidgetSync();
+}
+
+void WarRoomMainWindow::notifyModsFocusLost(NodeGraphicsItem* item)
+{
+	if (!item) return;
+	const warroom::WarNode* node = m_model.getNode(item->nodeId());
+	if (!node) return;
+
+	auto& mm = warroom::ModManager::instance();
+	// 主模组
+	if (!node->primary_mod_type.empty()) {
+		if (warroom::NodeMod* mod = mm.getMod(node->primary_mod_type)) {
+			void* data = mm.getPrimaryPrivate(node);
+			mod->onFocusLost(node, data);
+		}
+	}
+	// 辅助模组
+	for (const auto& modType : node->auxiliary_mod_types) {
+		if (warroom::NodeMod* mod = mm.getMod(modType)) {
+			void* data = mm.getNodePrivate(node, modType);
+			mod->onFocusLost(node, data);
+		}
+	}
+
+	// 通知后同步嵌入 widget 状态（若模组退出了浏览模式则销毁嵌入 widget）
+	item->requestEmbeddedWidgetSync();
 }
 
 void WarRoomMainWindow::updateCanvasAreaForOverlay()
@@ -897,6 +988,37 @@ void WarRoomMainWindow::updateCanvasAreaForOverlay()
 	QPoint tl = m_view->mapTo(m_highlightOverlay->parentWidget(), viewRect.topLeft());
 	QPoint br = m_view->mapTo(m_highlightOverlay->parentWidget(), viewRect.bottomRight());
 	m_highlightOverlay->setCanvasArea(QRect(tl, br).normalized());
+}
+
+// ============================================================================
+// 键盘焦点管理 - 画布级 QAction 快捷键的临时禁用/恢复
+// ============================================================================
+// 节点获得键盘焦点时，禁用 undo/redo/delete/new 的快捷键，
+// 避免与模组（如网页节点）的键盘输入冲突。
+// save/exit 始终保留（Ctrl+S 是文本编辑习惯，Ctrl+Q 退出软件）。
+
+void WarRoomMainWindow::stashCanvasShortcuts()
+{
+	if (m_shortcutsStashed) return;
+
+	if (m_newAction)    { m_savedShortcutNew    = m_newAction->shortcut();    m_newAction->setShortcut(QKeySequence()); }
+	if (m_undoAction)   { m_savedShortcutUndo   = m_undoAction->shortcut();   m_undoAction->setShortcut(QKeySequence()); }
+	if (m_redoAction)   { m_savedShortcutRedo   = m_redoAction->shortcut();   m_redoAction->setShortcut(QKeySequence()); }
+	if (m_deleteAction) { m_savedShortcutDelete = m_deleteAction->shortcut(); m_deleteAction->setShortcut(QKeySequence()); }
+
+	m_shortcutsStashed = true;
+}
+
+void WarRoomMainWindow::restoreCanvasShortcuts()
+{
+	if (!m_shortcutsStashed) return;
+
+	if (m_newAction)    m_newAction->setShortcut(m_savedShortcutNew);
+	if (m_undoAction)   m_undoAction->setShortcut(m_savedShortcutUndo);
+	if (m_redoAction)   m_redoAction->setShortcut(m_savedShortcutRedo);
+	if (m_deleteAction) m_deleteAction->setShortcut(m_savedShortcutDelete);
+
+	m_shortcutsStashed = false;
 }
 
 // ============================================================================
@@ -1165,6 +1287,17 @@ void WarRoomMainWindow::setupScene()
 		}
 	});
 
+	// Esc 键：将焦点退回到无焦点状态（操作信号回到软件本身）
+	connect(m_view, &WarRoomView::escapePressed, this, [this]() {
+		updateFocusNoFocus(tr("Esc"));
+	});
+
+	// 责任链回流：节点未消费键盘事件时，画布执行默认操作
+	connect(m_view, &WarRoomView::undoRequested, this, &WarRoomMainWindow::onUndo);
+	connect(m_view, &WarRoomView::redoRequested, this, &WarRoomMainWindow::onRedo);
+	connect(m_view, &WarRoomView::deleteRequested, this, &WarRoomMainWindow::deleteSelectedNode);
+	connect(m_view, &WarRoomView::newRequested, this, &WarRoomMainWindow::onNewAction);
+
 	// 确保画布区域的布局正确添加视图
 	if (m_canvasArea->layout()) {
 		m_canvasArea->layout()->addWidget(m_view);
@@ -1361,6 +1494,11 @@ void WarRoomMainWindow::connectNodeSignals(NodeGraphicsItem* item)
 		[this](const std::string&) {
 			refreshSidebarTree();
 			refreshTodoSidebar();
+		});
+	// 浏览模式下按 Esc：退出浏览模式后将焦点退回无焦点状态
+	QObject::connect(item, &NodeGraphicsItem::escapeFromBrowseMode, this,
+		[this]() {
+			updateFocusNoFocus(tr("Esc"));
 		});
 }
 
@@ -1601,6 +1739,21 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 	// 同步刷新侧边栏
 	refreshSidebarTree();
 	refreshTodoSidebar();
+
+	// 若当前焦点节点已被删除，退回画布焦点
+	if (m_keyboardFocusState == FocusState::NodeFocus && m_focusedNodeItem) {
+		bool stillExists = false;
+		for (auto it = m_nodeItems.begin(); it != m_nodeItems.end(); ++it) {
+			if (it.value() == m_focusedNodeItem) {
+				stillExists = true;
+				break;
+			}
+		}
+		if (!stillExists) {
+			m_focusedNodeItem = nullptr;
+			updateFocusOnCanvas();
+		}
+	}
 }
 
 void WarRoomMainWindow::refreshLinks()

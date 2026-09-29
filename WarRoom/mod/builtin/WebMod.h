@@ -56,6 +56,9 @@ namespace warroom {
 			bool hasSetUrl = false;
 			QPointer<QObject> repaintTarget;
 
+			// 焦点指示器状态：指示器是否在此节点上
+			bool hasFocus = false;
+
 			// 浏览模式相关
 			bool browseMode = false;
 			QPointer<QWebEngineView> webView;
@@ -94,6 +97,30 @@ namespace warroom {
 				d->fetchInProgress = true;
 				startFetch(d);
 			}
+		}
+
+		// ---------- 焦点指示器变化 ----------
+		// 指示器到达：标记 hasFocus，重绘显示"点击开始浏览"覆盖层
+		// 不立即创建 QWebEngineView（懒加载，节省资源）
+		void onFocusGained(const WarNode* /*node*/, void* modData) override {
+			auto* d = static_cast<PrivateData*>(modData);
+			if (!d) return;
+			d->hasFocus = true;
+			triggerRepaint(d);
+		}
+
+		// 指示器离开：清除 hasFocus；若处于浏览模式则退出浏览
+		// 嵌入 widget 的实际销毁由框架的 requestEmbeddedWidgetSync 完成
+		void onFocusLost(const WarNode* /*node*/, void* modData) override {
+			auto* d = static_cast<PrivateData*>(modData);
+			if (!d) return;
+			d->hasFocus = false;
+			if (d->browseMode) {
+				// 退出浏览模式，webView 由框架销毁（destroyBrowserWidget → destroyEmbeddedWidget）
+				d->browseMode = false;
+				// webView 指针会在 destroyEmbeddedWidget 中清除，这里不手动 clear
+			}
+			triggerRepaint(d);
 		}
 
 		// ---------- 序列化 ----------
@@ -289,6 +316,22 @@ namespace warroom {
 				p->setFont(ef);
 				p->drawText(rect.adjusted(4, 4, -4, -4),
 					Qt::AlignTop | Qt::AlignRight, QObject::tr("Load failed"));
+			}
+
+			// ---------- 焦点覆盖层 ----------
+			// 指示器在此节点上但未进入浏览模式时，绘制半透明覆盖层提示用户点击进入
+			if (d->hasFocus && !d->browseMode && d->hasSetUrl) {
+				// 半透明深色覆盖层
+				p->fillRect(rect, QColor(0, 0, 0, 100));
+
+				// 提示文字
+				p->setPen(QColor(255, 255, 255, 220));
+				QFont of = p->font();
+				of.setPointSize(10);
+				of.setBold(true);
+				p->setFont(of);
+				p->drawText(rect, Qt::AlignCenter,
+					QObject::tr("Double-click to browse"));
 			}
 
 			return true;

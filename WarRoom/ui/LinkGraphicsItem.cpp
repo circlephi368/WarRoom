@@ -46,7 +46,8 @@ LinkGraphicsItem::~LinkGraphicsItem()
 // ---------------------------------------------------------------------------
 QRectF LinkGraphicsItem::boundingRect() const
 {
-	return m_hitArea.boundingRect();
+	// 命中区域在节点锚点处被挖空，包围盒需外扩以保证仍覆盖整条连线的视觉绘制
+	return m_hitArea.boundingRect().adjusted(-13, -13, 13, 13);
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +242,35 @@ void LinkGraphicsItem::updateHitArea()
 	QPainterPathStroker stroker;
 	stroker.setWidth(10.0);   // 线宽 2 + 两侧各 4px 容差，总共约 10px 的命中宽度
 	m_hitArea = stroker.createStroke(path);
+
+	// ---- 端点挖空 ----
+	// 连线只要有一端连着节点，Z 值就会被设为 maxZ + 0.5，始终位于节点之上。
+	// 而连线端点恰好落在锚点中心，10px 宽的命中带会完全覆盖锚点圆，
+	// 导致鼠标按下时总是命中连线而不是锚点。
+	// 这里从命中区域中减去以节点锚点为圆心的小圆，让锚点区域归还给锚点。
+	// 仅影响命中判定，连线本身的视觉绘制不变。
+	const warroom::WarLink* link = m_model ? m_model->getLink(m_linkId) : nullptr;
+	if (link) {
+		constexpr qreal kNodeAnchorHoleRadius = 12.0;
+
+		QPainterPath holes;
+		if (dynamic_cast<const warroom::NodeAnchor*>(link->start_anchor.get())) {
+			holes.addEllipse(m_startPoint, kNodeAnchorHoleRadius, kNodeAnchorHoleRadius);
+		}
+		if (dynamic_cast<const warroom::NodeAnchor*>(link->end_anchor.get())) {
+			holes.addEllipse(m_endPoint, kNodeAnchorHoleRadius, kNodeAnchorHoleRadius);
+		}
+		for (size_t i = 0; i < link->waypoints.size() && i < static_cast<size_t>(m_wayPoints.size()); ++i) {
+			if (dynamic_cast<const warroom::NodeAnchor*>(link->waypoints[i].get())) {
+				holes.addEllipse(m_wayPoints[static_cast<int>(i)],
+					kNodeAnchorHoleRadius, kNodeAnchorHoleRadius);
+			}
+		}
+
+		if (!holes.isEmpty()) {
+			m_hitArea = m_hitArea.subtracted(holes);
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

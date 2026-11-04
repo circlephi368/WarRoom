@@ -22,13 +22,13 @@ ConnectionAnchor::ConnectionAnchor(NodeGraphicsItem* parentNode, int edge, QGrap
 
 QRectF ConnectionAnchor::boundingRect() const
 {
-	// 返回包含命中区域的包围盒，确保事件系统能检测到锚点
+	// 包围盒与视觉尺寸保持一致
 	return QRectF(-HIT_RADIUS, -HIT_RADIUS, HIT_RADIUS * 2, HIT_RADIUS * 2);
 }
 
 QPainterPath ConnectionAnchor::shape() const
 {
-	// 命中区域为比视觉大得多的圆形，便于用户点击和拖拽
+	// 命中区域与视觉圆一致
 	QPainterPath path;
 	path.addEllipse(QPointF(0, 0), HIT_RADIUS, HIT_RADIUS);
 	return path;
@@ -36,7 +36,7 @@ QPainterPath ConnectionAnchor::shape() const
 
 bool ConnectionAnchor::contains(const QPointF& point) const
 {
-	// 使用更大的命中半径进行点包含检测
+	// 使用与视觉一致的命中半径进行点包含检测
 	return std::hypot(point.x(), point.y()) <= HIT_RADIUS;
 }
 
@@ -63,8 +63,26 @@ void ConnectionAnchor::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
 		return;
 	}
 
-	if (!m_dragging) {
-		hide();
+	// 拖动中保持显示，避免连线过程锚点闪烁
+	if (m_dragging) {
+		setBrush(QColor(100, 150, 255, 180));
+		QGraphicsEllipseItem::hoverLeaveEvent(event);
+		return;
+	}
+
+	// 光标回到父节点矩形内：保持锚点显示，由父节点的 hover 逻辑统一管理
+	QPointF local = m_parentNode->mapFromScene(event->scenePos());
+	const qreal w = m_parentNode->getWidth();
+	const qreal h = m_parentNode->getHeight();
+	if (local.x() >= 0 && local.x() <= w && local.y() >= 0 && local.y() <= h) {
+		setBrush(QColor(100, 150, 255, 180));
+		QGraphicsEllipseItem::hoverLeaveEvent(event);
+		return;
+	}
+
+	// 光标真正离开节点及锚点区域：隐藏该节点的全部锚点
+	for (auto* anchor : m_parentNode->anchors()) {
+		if (anchor) anchor->hide();
 	}
 	setBrush(QColor(100, 150, 255, 180));
 	QGraphicsEllipseItem::hoverLeaveEvent(event);

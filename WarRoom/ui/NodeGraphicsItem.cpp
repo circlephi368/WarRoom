@@ -1019,6 +1019,19 @@ void NodeGraphicsItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
 		return;
 	}
 
+	// 光标移入锚点（锚点是子项）时，父节点会先收到 hoverLeave。
+	// 此时不应隐藏锚点，否则用户刚悬停到锚点上它就会消失。
+	// 用略放大的包围盒判断，避免光标恰好落在边界时误判导致锚点闪没。
+	QPointF localPos = mapFromScene(event->scenePos());
+	for (auto* anchor : m_anchors) {
+		if (anchor && anchor->isVisible()
+			&& anchor->boundingRect().adjusted(-3, -3, 3, 3)
+				.contains(localPos - anchor->pos())) {
+			QGraphicsObject::hoverLeaveEvent(event);
+			return;
+		}
+	}
+
 	for (auto* anchor : m_anchors) {
 		if (anchor) anchor->hide();
 	}

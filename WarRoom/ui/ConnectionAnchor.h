@@ -38,5 +38,5 @@ private:
 	bool m_dragging = false;
 
 	static constexpr qreal VISUAL_RADIUS = 6.0;   // 视觉半径
-	static constexpr qreal HIT_RADIUS = 20.0;     // 命中检测半径（比视觉大很多，便于点击）
+	static constexpr qreal HIT_RADIUS = 6.0;      // 命中检测半径（与视觉一致）
 };

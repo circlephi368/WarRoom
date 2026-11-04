@@ -572,6 +572,13 @@ static QString getWarroomFromFolder(const QString& folderPath) {
 void WarRoomMainWindow::onSaveAction()
 {
 	qDebug() << "[KEYDBG-SLOT] onSaveAction triggered | m_currentFilePath =" << m_currentFilePath;
+
+	// 只读模式下禁止保存
+	if (m_model.isReadOnly()) {
+		showMessage("只读模式下不能保存文件", MessageLevel::Warning, 3000);
+		return;
+	}
+
 	if (m_view) {
 		warroom::Point2D viewCenter = m_view->getViewCenter();
 		m_model.setCameraView(viewCenter, m_view->getZoomLevel());
@@ -608,6 +615,13 @@ void WarRoomMainWindow::onSaveAction()
 void WarRoomMainWindow::onSaveAsAction()
 {
 	qDebug() << "[KEYDBG-SLOT] onSaveAsAction triggered";
+
+	// 只读模式下禁止另存为
+	if (m_model.isReadOnly()) {
+		showMessage("只读模式下不能保存文件", MessageLevel::Warning, 3000);
+		return;
+	}
+
 	QString chosen = QFileDialog::getExistingDirectory(this,
 		"选择保存位置", QString(),
 		QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);

@@ -131,6 +131,7 @@
     <ClCompile Include="ui\LinkCreationManager.cpp" />
     <ClCompile Include="ui\LinkGraphicsItem.cpp" />
     <ClCompile Include="ui\NodeGraphicsItem.cpp" />
+    <ClCompile Include="ui\SearchPanel.cpp" />
     <ClCompile Include="ui\TempConnectionItem.cpp" />
     <ClCompile Include="ui\WarRoomMainWindow.cpp" />
     <QtRcc Include="myQtproject.qrc" />
@@ -174,6 +175,7 @@
     <QtMoc Include="ui\CameraAnimator.h" />
     <QtMoc Include="ui\HighlightOverlay.h" />
     <ClInclude Include="resource.h" />
+    <QtMoc Include="ui\SearchPanel.h" />
     <ClInclude Include="ui\WindowHelper.h" />
     <QtMoc Include="ui\CustomTextEdit.h" />
     <QtMoc Include="ui\TempConnectionItem.h" />

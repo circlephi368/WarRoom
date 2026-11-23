@@ -94,9 +94,10 @@ namespace warroom {
 		auto it = nodes_.find(id);
 		if (it == nodes_.end()) return false;
 
-		WarNode& nodeToDelete = it->second;
+		// 复制节点数据，避免后续 erase 导致引用失效
+		WarNode nodeToDelete = it->second;
 		Uuid parent_id = nodeToDelete.parent_id;
-		std::vector<Uuid> childrenToReparent = nodeToDelete.children_ids;
+		std::vector<Uuid> children = nodeToDelete.children_ids;
 
 		// 从父节点的 children_ids 中移除当前节点
 		auto parentIt = nodes_.find(parent_id);
@@ -105,56 +106,61 @@ namespace warroom {
 			siblings.erase(std::remove(siblings.begin(), siblings.end(), id), siblings.end());
 		}
 
-		// 如果需要重新挂载子节点
-		if (reparentChildren && !childrenToReparent.empty()) {
-			auto* parentNode = (parentIt != nodes_.end()) ? &parentIt->second : nullptr;
-			if (parentNode) {
-				// 找到当前节点在父节点中的位置
-				int insertIndex = -1;
-				for (size_t i = 0; i < parentNode->children_ids.size(); ++i) {
-					if (parentNode->children_ids[i] == id) {
-						insertIndex = static_cast<int>(i);
-						break;
+		if (reparentChildren) {
+			// 提升子节点到父节点
+			if (!children.empty()) {
+				auto* parentNode = (parentIt != nodes_.end()) ? &parentIt->second : nullptr;
+				if (parentNode) {
+					// 找到当前节点在父节点中的位置
+					int insertIndex = -1;
+					for (size_t i = 0; i < parentNode->children_ids.size(); ++i) {
+						if (parentNode->children_ids[i] == id) {
+							insertIndex = static_cast<int>(i);
+							break;
+						}
 					}
-				}
 
-				// 在相同位置插入子节点
-				for (const auto& childId : childrenToReparent) {
-					auto childIt = nodes_.find(childId);
-					if (childIt != nodes_.end()) {
-						childIt->second.parent_id = parent_id;
-
-						// 重新计算相对坐标
-						if (parent_id != document_root_id_) {
-							childIt->second.rel_x = childIt->second.pos_x - parentNode->pos_x;
-							childIt->second.rel_y = childIt->second.pos_y - parentNode->pos_y;
-						}
-						else {
-							childIt->second.rel_x = childIt->second.pos_x;
-							childIt->second.rel_y = childIt->second.pos_y;
-						}
-
-						if (insertIndex >= 0) {
-							parentNode->children_ids.insert(
-								parentNode->children_ids.begin() + insertIndex, childId);
-							insertIndex++;
-						}
-						else {
-							parentNode->children_ids.push_back(childId);
+					for (const auto& childId : children) {
+						auto childIt = nodes_.find(childId);
+						if (childIt != nodes_.end()) {
+							childIt->second.parent_id = parent_id;
+							if (parent_id != document_root_id_) {
+								childIt->second.rel_x = childIt->second.pos_x - parentNode->pos_x;
+								childIt->second.rel_y = childIt->second.pos_y - parentNode->pos_y;
+							}
+							else {
+								childIt->second.rel_x = childIt->second.pos_x;
+								childIt->second.rel_y = childIt->second.pos_y;
+							}
+							if (insertIndex >= 0) {
+								parentNode->children_ids.insert(
+									parentNode->children_ids.begin() + insertIndex, childId);
+								insertIndex++;
+							}
+							else {
+								parentNode->children_ids.push_back(childId);
+							}
 						}
 					}
 				}
 			}
 		}
+		else {
+			// 级联删除子树：先递归删除所有子节点（及其子树、关联连线）
+			for (const auto& childId : children) {
+				removeNode(childId, false);
+			}
+		}
 
-		// 删除与当前节点关联的连线
+		// 删除与当前节点关联的连线（用 removeLink 以彻底清理 links_by_node_ 索引，
+		// 避免在其他节点上留下指向已删除连线的悬空索引项）
 		auto range = links_by_node_.equal_range(id);
 		std::vector<Uuid> links_to_remove;
 		for (auto lit = range.first; lit != range.second; ++lit) {
 			links_to_remove.push_back(lit->second);
 		}
 		for (const auto& link_id : links_to_remove) {
-			links_.erase(link_id);
+			removeLink(link_id);
 		}
 		links_by_node_.erase(id);
 

@@ -475,13 +475,17 @@ namespace warroom {
 					if (!link.id.empty()) {
 						std::string linkId = link.id;
 						links_[linkId] = std::move(link);
-						// 重建索引
+						// 重建索引（与 addLink 保持一致：起点、终点、路径点都要登记）
 						const auto& linkRef = links_[linkId];
-						if (auto* na = dynamic_cast<const NodeAnchor*>(linkRef.start_anchor.get())) {
-							links_by_node_.emplace(na->node_id, link.id);
-						}
-						if (auto* na = dynamic_cast<const NodeAnchor*>(linkRef.end_anchor.get())) {
-							links_by_node_.emplace(na->node_id, link.id);
+						auto indexAnchor = [&](const std::unique_ptr<Anchor>& a) {
+							if (auto* na = dynamic_cast<const NodeAnchor*>(a.get())) {
+								links_by_node_.emplace(na->node_id, linkId);
+							}
+						};
+						indexAnchor(linkRef.start_anchor);
+						indexAnchor(linkRef.end_anchor);
+						for (const auto& wp : linkRef.waypoints) {
+							indexAnchor(wp);
 						}
 					}
 				}

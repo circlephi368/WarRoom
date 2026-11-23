@@ -36,9 +36,8 @@ namespace warroom {
 	};
 
 	// 删除节点命令
-	// - 构造时只保存节点 id 与父节点位置信息
-	// - execute() 在执行时立刻做节点完整快照（包括关联连线），再从模型移除节点
-	// - undo() 根据快照重新把节点插入到原来的位置并恢复子节点关系和关联连线
+	// - execute() 在执行时捕获被删节点的完整子树快照（所有后代节点 + 关联连线），再从模型移除
+	// - undo() 按父→子顺序把整棵子树重新插入，并恢复关联连线
 	class DeleteNodeCommand : public Command {
 	public:
 		DeleteNodeCommand(const Uuid& nodeId);
@@ -51,11 +50,19 @@ namespace warroom {
 		static NodeLinkSnapshot::AnchorSnap captureAnchor(const Anchor* a);
 		static std::unique_ptr<Anchor> restoreAnchor(const NodeLinkSnapshot::AnchorSnap& s);
 
+		// 子树中单个节点的快照
+		struct SubtreeNodeSnapshot {
+			Uuid id;
+			WarNode node;       // 完整节点数据（含 children_ids）
+			Uuid parentId;      // 原父节点 id
+			int index = -1;     // 在原父节点 children_ids 中的位置
+		};
+
 		Uuid nodeId_;
-		WarNode savedNode_;    // 执行删除时捕获的节点完整快照
-		Uuid parentId_;        // 原父节点
-		int index_ = -1;       // 原父节点 children_ids 中的位置
-		std::vector<NodeLinkSnapshot> savedLinks_; // 关联连线快照
+		Uuid parentId_;                          // 被删根节点的原父节点
+		int index_ = -1;                         // 被删根节点在原父节点中的位置
+		std::vector<SubtreeNodeSnapshot> subtree_; // 先根后子的快照序列
+		std::vector<NodeLinkSnapshot> savedLinks_; // 子树关联的连线快照
 		bool captured_ = false;
 	};
 

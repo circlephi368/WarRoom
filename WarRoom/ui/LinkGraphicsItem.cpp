@@ -348,6 +348,74 @@ void LinkGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
 	QGraphicsObject::mousePressEvent(event);
 }
 
+void LinkGraphicsItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event)
+{
+	// 双击连接线 = 跳转到距离当前视口中心更远的那一端节点
+	if (!m_model || !scene()) {
+		QGraphicsObject::mouseDoubleClickEvent(event);
+		return;
+	}
+
+	const warroom::WarLink* link = m_model->getLink(m_linkId);
+	if (!link) {
+		QGraphicsObject::mouseDoubleClickEvent(event);
+		return;
+	}
+
+	// 获取当前视口中心的场景坐标
+	QPointF viewportCenter;
+	bool haveCenter = false;
+	const auto views = scene()->views();
+	if (!views.isEmpty()) {
+		QGraphicsView* view = views.first();
+		viewportCenter = view->mapToScene(view->viewport()->rect().center());
+		haveCenter = true;
+	}
+
+	// 收集两端的 NodeAnchor（附带其场景坐标）
+	struct EndInfo {
+		std::string nodeId;
+		QPointF scenePos;
+		bool valid = false;
+	};
+	EndInfo startInfo, endInfo;
+
+	if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(link->start_anchor.get())) {
+		startInfo.nodeId = na->node_id;
+		warroom::Point2D p = na->resolvePosition(*m_model);
+		startInfo.scenePos = QPointF(p.x, p.y);
+		startInfo.valid = m_model->getNode(startInfo.nodeId) != nullptr;
+	}
+	if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(link->end_anchor.get())) {
+		endInfo.nodeId = na->node_id;
+		warroom::Point2D p = na->resolvePosition(*m_model);
+		endInfo.scenePos = QPointF(p.x, p.y);
+		endInfo.valid = m_model->getNode(endInfo.nodeId) != nullptr;
+	}
+
+	// 选择更远的那一端：两端都是 NodeAnchor 时比较距离，否则直接选有效的那端
+	std::string targetNodeId;
+	if (startInfo.valid && endInfo.valid && haveCenter) {
+		qreal distStart = std::hypot(startInfo.scenePos.x() - viewportCenter.x(),
+									 startInfo.scenePos.y() - viewportCenter.y());
+		qreal distEnd = std::hypot(endInfo.scenePos.x() - viewportCenter.x(),
+								   endInfo.scenePos.y() - viewportCenter.y());
+		targetNodeId = (distStart > distEnd) ? startInfo.nodeId : endInfo.nodeId;
+	} else if (startInfo.valid) {
+		targetNodeId = startInfo.nodeId;
+	} else if (endInfo.valid) {
+		targetNodeId = endInfo.nodeId;
+	}
+
+	if (!targetNodeId.empty()) {
+		emit navigateToNodeRequested(targetNodeId, true);
+		event->accept();
+		return;
+	}
+
+	QGraphicsObject::mouseDoubleClickEvent(event);
+}
+
 void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
 {
 	QMenu menu;
@@ -383,14 +451,56 @@ void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
 		}
 	)");
 
-	// ---- 获取当前连线的 label ----
+	// ---- 获取当前连线的 label 和两端节点信息 ----
 	QString currentLabel;
+	std::string startNodeId, endNodeId;
+	QString startNodeTitle, endNodeTitle;
+	bool startIsNode = false, endIsNode = false;
+
 	if (m_model) {
 		const warroom::WarLink* link = m_model->getLink(m_linkId);
 		if (link) {
 			currentLabel = QString::fromStdString(link->label);
+
+			auto resolveNode = [&](const std::unique_ptr<warroom::Anchor>& anchor,
+									std::string& outId, QString& outTitle, bool& outIsNode) {
+				if (!anchor) return;
+				if (auto* na = dynamic_cast<const warroom::NodeAnchor*>(anchor.get())) {
+					outId = na->node_id;
+					outIsNode = true;
+					if (const warroom::WarNode* n = m_model->getNode(outId)) {
+						outTitle = QString::fromStdString(n->title);
+					} else {
+						outTitle = tr("(已删除)");
+					}
+				}
+			};
+			resolveNode(link->start_anchor, startNodeId, startNodeTitle, startIsNode);
+			resolveNode(link->end_anchor, endNodeId, endNodeTitle, endIsNode);
 		}
 	}
+
+	// ---- 导航分组：跳转到起点 / 终点 ----
+	QAction* jumpStartAction = nullptr;
+	QAction* jumpEndAction = nullptr;
+	QAction* jumpSectionSep = menu.addAction("—— 导航 ——");
+	jumpSectionSep->setEnabled(false);
+
+	if (startIsNode) {
+		jumpStartAction = menu.addAction(QObject::tr("跳转到起点: %1").arg(
+			startNodeTitle.isEmpty() ? QStringLiteral("(无标题)") : startNodeTitle));
+	} else {
+		menu.addAction(QObject::tr("起点 (锚点)"))->setEnabled(false);
+	}
+
+	if (endIsNode) {
+		jumpEndAction = menu.addAction(QObject::tr("跳转到终点: %1").arg(
+			endNodeTitle.isEmpty() ? QStringLiteral("(无标题)") : endNodeTitle));
+	} else {
+		menu.addAction(QObject::tr("终点 (锚点)"))->setEnabled(false);
+	}
+
+	menu.addSeparator();
 
 	// ---- 编辑文字 ----
 	QAction* editLabelAction = menu.addAction("编辑连线文字…");
@@ -438,6 +548,10 @@ void LinkGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
 
 	if (selectedAction == deleteAction) {
 		emit deletionRequested(m_linkId);
+	} else if (jumpStartAction && selectedAction == jumpStartAction) {
+		emit navigateToNodeRequested(startNodeId, true);
+	} else if (jumpEndAction && selectedAction == jumpEndAction) {
+		emit navigateToNodeRequested(endNodeId, true);
 	} else if (selectedAction == editLabelAction) {
 		bool ok = false;
 		QString text = QInputDialog::getText(nullptr, "编辑连线文字",

@@ -24,6 +24,7 @@
 #include <QCoreApplication>
 #include <QSettings>
 #include <QSet>
+#include <QStringList>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -154,6 +155,18 @@ WarRoomMainWindow::WarRoomMainWindow(QWidget* parent)
 	// 初始化焦点指示器
 	m_highlightOverlay->setFocusState(FocusState::CanvasFocus);
 	updateCanvasAreaForOverlay();
+
+	// ---- 创建浮层搜索面板（Ctrl+H）----
+	// parent 为 m_centralContainer：和 HighlightOverlay 同层，raise() 后在其之上
+	m_searchPanel = new SearchPanel(&m_model, m_centralContainer);
+	m_searchPanel->raise();
+	m_searchPanel->hide();  // 初始隐藏，等待 Ctrl+H 打开
+
+	// 连接搜索面板的导航请求
+	// 注意：navigateToNode 默认第二参数 zoomIfFar=true，这里用 lambda 显式传入，
+	// 因为 Qt 新式 connect 不考虑默认参数值（编译期只看函数签名）
+	connect(m_searchPanel, &SearchPanel::navigateToNodeRequested,
+		this, [this](const std::string& nodeId) { navigateToNode(nodeId, true); });
 
 	// 用户拖动/滚轮时中止相机动画
 	connect(m_view, &WarRoomView::userPanStarted,
@@ -291,6 +304,7 @@ void WarRoomMainWindow::createLinkBetweenNodes(const std::string& fromId, int fr
 		auto* linkItem = new LinkGraphicsItem(newLinkId, &m_model);
 		setupLinkItemConnections(linkItem);
 		m_scene->addItem(linkItem);
+		m_linkItems.insert(QString::fromStdString(newLinkId), linkItem);
 	}
 }
 
@@ -370,6 +384,9 @@ void WarRoomMainWindow::setupLinkItemConnections(LinkGraphicsItem* linkItem)
 		this, &WarRoomMainWindow::onLinkLabelEditRequested);
 	connect(linkItem, &LinkGraphicsItem::colorChangeRequested,
 		this, &WarRoomMainWindow::onLinkColorChangeRequested);
+	// 连接线导航：右键菜单跳转 / 双击跳转 → 复用统一导航入口
+	connect(linkItem, &LinkGraphicsItem::navigateToNodeRequested,
+		this, &WarRoomMainWindow::navigateToNode);
 }
 
 void WarRoomMainWindow::createNodeAndLink(const std::string& fromId, int fromEdge, QPointF scenePos)
@@ -451,6 +468,7 @@ void WarRoomMainWindow::createNodeAndLink(const std::string& fromId, int fromEdg
 			auto* linkItem = new LinkGraphicsItem(newLinkId, &m_model);
 			setupLinkItemConnections(linkItem);
 			m_scene->addItem(linkItem);
+			m_linkItems.insert(QString::fromStdString(newLinkId), linkItem);
 		}
 	}
 
@@ -1336,11 +1354,15 @@ void WarRoomMainWindow::populateFromModel()
 	using warroom::WarNode;
 	using warroom::Uuid;
 
+	// 场景被重建，旧的连线映射已失效
+	m_linkItems.clear();
+
 	// ---- 从模型读取连线，创建 LinkGraphicsItem ----
 	for (const auto& [linkId, link] : m_model.getAllLinks()) {
 		auto* linkItem = new LinkGraphicsItem(linkId, &m_model);
 		setupLinkItemConnections(linkItem);
 		m_scene->addItem(linkItem);
+		m_linkItems.insert(QString::fromStdString(linkId), linkItem);
 	}
 
 	// ---- 递归创建节点图形项 ----
@@ -1401,10 +1423,12 @@ void WarRoomMainWindow::rebuildFromModel()
 	addNodeRecursive(m_model.getDocumentRootId());
 
 	// 添加连线图形项
+	m_linkItems.clear();
 	for (const auto& [linkId, link] : m_model.getAllLinks()) {
 		auto* linkItem = new LinkGraphicsItem(linkId, &m_model);
 		setupLinkItemConnections(linkItem);
 		m_scene->addItem(linkItem);
+		m_linkItems.insert(QString::fromStdString(linkId), linkItem);
 	}
 
 	refreshAllLinksZValue();
@@ -1423,6 +1447,7 @@ void WarRoomMainWindow::clearScene()
 		}
 	}
 	m_nodeItems.clear();
+	m_linkItems.clear();
 
 	// 最后清空场景
 	m_scene->clear();
@@ -1543,7 +1568,8 @@ void WarRoomMainWindow::onNodeMoved(const std::string& nodeId, float newX, float
 		m_model.updateAbsolutePositionRecursive(childId);
 	}
 	updateSubtreePositionRecursive(nodeId);
-	refreshLinks();
+	// 拖动过程中只更新与自身（含子树）相连的连线，避免全量遍历场景
+	refreshLinksForNode(nodeId);
 }
 
 void WarRoomMainWindow::onNodeMoveFinished(const std::string& nodeId,
@@ -1649,7 +1675,8 @@ void WarRoomMainWindow::onNodeSizeChanged(const std::string& nodeId,
 		node->width = newWidth;
 		node->height = newHeight;
 	}
-	refreshLinks();
+	// 尺寸变化只影响与自身相连的连线（不影响子节点位置）
+	refreshLinksForNode(nodeId, false);
 }
 
 void WarRoomMainWindow::onNodeResizeFinished(const std::string& nodeId,
@@ -1772,29 +1799,94 @@ void WarRoomMainWindow::syncAllItemsFromModel()
 
 void WarRoomMainWindow::refreshLinks()
 {
-	QList<QGraphicsItem*> itemsToRemove;
+	// 只遍历已登记的连线图形项，避免每次交互都全量遍历场景（O(场景图元数)）
+	QStringList staleKeys;
 
-	for (QGraphicsItem* item : m_scene->items()) {
-		if (auto* linkItem = dynamic_cast<LinkGraphicsItem*>(item)) {
-			if (!m_model.getLink(linkItem->linkId())) {
-				itemsToRemove.append(item);
-			}
-			else {
-				linkItem->updatePositions();
-			}
+	for (auto it = m_linkItems.begin(); it != m_linkItems.end(); ++it) {
+		LinkGraphicsItem* linkItem = it.value();
+		if (!linkItem) {
+			staleKeys.append(it.key());
+			continue;
+		}
+		if (!m_model.getLink(linkItem->linkId())) {
+			m_scene->removeItem(linkItem);
+			delete linkItem;
+			staleKeys.append(it.key());
+		}
+		else {
+			linkItem->updatePositions();
 		}
 	}
 
-	for (QGraphicsItem* item : itemsToRemove) {
-		m_scene->removeItem(item);
-		delete item;
+	for (const QString& key : staleKeys) {
+		m_linkItems.remove(key);
+	}
+
+	// 为模型中存在、但 m_linkItems 中尚未登记的连线创建图形项。
+	// 典型场景：撤销/重做后连线被重新放回模型，需要重建对应的 QGraphicsItem。
+	const auto& allLinks = m_model.getAllLinks();
+	for (const auto& kv : allLinks) {
+		const warroom::Uuid& linkId = kv.first;
+		QString qid = QString::fromStdString(linkId);
+		if (m_linkItems.contains(qid)) continue;
+
+		LinkGraphicsItem* linkItem = new LinkGraphicsItem(linkId, &m_model);
+		setupLinkItemConnections(linkItem);
+		m_scene->addItem(linkItem);
+		m_linkItems.insert(qid, linkItem);
+	}
+}
+
+void WarRoomMainWindow::refreshLinksForNode(const std::string& nodeId, bool includeDescendants)
+{
+	// 收集受影响的节点集合：节点自身，及（可选）其整棵子树
+	QSet<QString> affected;
+	std::function<void(const std::string&)> collect =
+		[&](const std::string& id) {
+		affected.insert(QString::fromStdString(id));
+		if (!includeDescendants) return;
+
+		const warroom::WarNode* node = m_model.getNode(id);
+		if (!node) return;
+		for (const auto& childId : node->children_ids) {
+			if (!affected.contains(QString::fromStdString(childId))) {
+				collect(childId);
+			}
+		}
+	};
+	collect(nodeId);
+	if (affected.isEmpty()) return;
+
+	// 只更新与受影响节点相连的连线
+	for (auto it = m_linkItems.constBegin(); it != m_linkItems.constEnd(); ++it) {
+		LinkGraphicsItem* linkItem = it.value();
+		if (!linkItem) continue;
+
+		const warroom::WarLink* link = m_model.getLink(linkItem->linkId());
+		if (!link) continue;   // 失效连线交由 refreshLinks() 统一清理
+
+		bool matched = false;
+		auto check = [&](const warroom::Anchor* a) {
+			if (matched || !a || a->anchor_type != warroom::AnchorType::Node) return;
+			const auto* na = dynamic_cast<const warroom::NodeAnchor*>(a);
+			if (na && affected.contains(QString::fromStdString(na->node_id))) {
+				matched = true;
+			}
+		};
+		check(link->start_anchor.get());
+		check(link->end_anchor.get());
+		for (const auto& wp : link->waypoints) check(wp.get());
+
+		if (matched) {
+			linkItem->updatePositions();
+		}
 	}
 }
 
 void WarRoomMainWindow::refreshAllLinksZValue()
 {
-	for (QGraphicsItem* item : m_scene->items()) {
-		if (auto* linkItem = dynamic_cast<LinkGraphicsItem*>(item)) {
+	for (auto it = m_linkItems.constBegin(); it != m_linkItems.constEnd(); ++it) {
+		if (LinkGraphicsItem* linkItem = it.value()) {
 			linkItem->updateZValueFromNodes();
 		}
 	}
@@ -2658,6 +2750,13 @@ void WarRoomMainWindow::setupCustomUi()
 		m_deleteAction->setShortcut(QKeySequence::Delete);
 		connect(m_deleteAction, &QAction::triggered, this, &WarRoomMainWindow::deleteSelectedNode);
 	}
+	if (!m_searchAction) {
+		m_searchAction = new QAction("搜索节点文本", this);
+		m_searchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
+		m_searchAction->setShortcutContext(Qt::ApplicationShortcut);  // 任何焦点下都能触发
+		connect(m_searchAction, &QAction::triggered, this, &WarRoomMainWindow::showSearchPanel);
+		addAction(m_searchAction);  // 必须注册到主窗口才能收到快捷键
+	}
 
 	// 普通按钮样式（QPushButton）
 	QString btnStyle = R"(
@@ -3321,26 +3420,9 @@ void WarRoomMainWindow::onTodoItemFocused(const std::string& nodeId)
 
 void WarRoomMainWindow::onTodoItemDoubleClicked(const std::string& nodeId)
 {
-	// 双击聚焦：平滑居中并在缩放过小时放大到 0.6（与左侧边栏双击逻辑一致）
-	auto it = m_nodeItems.find(QString::fromStdString(nodeId));
-	if (it != m_nodeItems.end()) {
-		auto* item = it.value();
-		float currentZoom = m_view->getZoomLevel();
-		float targetZoom = (currentZoom < 0.5f) ? 0.6f : currentZoom;
-
-		if (m_cameraAnimator) {
-			QRectF itemRect = item->mapToScene(item->boundingRect()).boundingRect();
-			m_cameraAnimator->focusOn(itemRect.center(), targetZoom);
-		} else {
-			m_view->centerOn(item);
-			if (currentZoom < 0.5f) {
-				warroom::Point2D center = m_view->getViewCenter();
-				m_view->setViewCenter(center, 0.6f);
-			}
-		}
-
-		m_todoSidebar->selectItem(nodeId);
-	}
+	// 双击聚焦：平滑居中并在缩放过小时放大（与侧边栏双击逻辑一致，复用 navigateToNode）
+	navigateToNode(nodeId, true);
+	m_todoSidebar->selectItem(nodeId);
 	showNodeHighlight(nodeId, false);  // 右侧栏
 }
 
@@ -3372,11 +3454,8 @@ void WarRoomMainWindow::onToggleTodoSidebar()
 // ============================================================
 void WarRoomMainWindow::onSidebarNodeFocused(const std::string& nodeId)
 {
-	// 只居中视图使节点可见，不修改画布节点的选中状态
-	auto it = m_nodeItems.find(QString::fromStdString(nodeId));
-	if (it != m_nodeItems.end()) {
-		focusNodeAnimated(it.value());
-	}
+	// 只平滑居中视图使节点可见，不主动改缩放，不修改画布节点的选中状态
+	navigateToNode(nodeId, false);
 	m_sidebar->selectNode(nodeId);
 	showNodeHighlight(nodeId, true);  // 左侧栏
 }
@@ -3402,29 +3481,9 @@ void WarRoomMainWindow::onToggleSidebarCollapse()
 
 void WarRoomMainWindow::onSidebarNodeDoubleClicked(const std::string& nodeId)
 {
-	// 双击聚焦：平滑居中并适当放大
-	auto it = m_nodeItems.find(QString::fromStdString(nodeId));
-	if (it != m_nodeItems.end()) {
-		auto* item = it.value();
-		// 双击时如果当前缩放过小，强制目标缩放为 0.6
-		float currentZoom = m_view->getZoomLevel();
-		float targetZoom = (currentZoom < 0.5f) ? 0.6f : currentZoom;
-
-		// 聚焦到节点中心
-		if (m_cameraAnimator) {
-			// 直接用 item 的中心点 + 指定缩放
-			QRectF itemRect = item->mapToScene(item->boundingRect()).boundingRect();
-			m_cameraAnimator->focusOn(itemRect.center(), targetZoom);
-		} else {
-			m_view->centerOn(item);
-			if (currentZoom < 0.5f) {
-				warroom::Point2D center = m_view->getViewCenter();
-				m_view->setViewCenter(center, 0.6f);
-			}
-		}
-
-		m_sidebar->selectNode(nodeId);
-	}
+	// 双击聚焦：平滑居中并在缩放过小时放大，跳转感更强
+	navigateToNode(nodeId, true);
+	m_sidebar->selectNode(nodeId);
 	showNodeHighlight(nodeId, true);  // 左侧栏
 }
 
@@ -3438,6 +3497,31 @@ void WarRoomMainWindow::focusNodeAnimated(NodeGraphicsItem* item)
 		m_cameraAnimator->focusOn(item);
 	} else if (m_view) {
 		m_view->centerOn(item);
+	}
+}
+
+void WarRoomMainWindow::navigateToNode(const std::string& nodeId, bool zoomIfFar)
+{
+	auto it = m_nodeItems.find(QString::fromStdString(nodeId));
+	if (it == m_nodeItems.end()) return;
+
+	NodeGraphicsItem* item = it.value();
+	if (!item) return;
+
+	if (!m_cameraAnimator) {
+		m_view->centerOn(item);
+		return;
+	}
+
+	if (zoomIfFar) {
+		// 聚焦+放大模式：缩放过小时主动放大到 0.6，让跳转感更强
+		float currentZoom = m_view->getZoomLevel();
+		float targetZoom = (currentZoom < 0.5f) ? 0.6f : currentZoom;
+		QRectF itemRect = item->mapToScene(item->boundingRect()).boundingRect();
+		m_cameraAnimator->focusOn(itemRect.center(), targetZoom);
+	} else {
+		// 平滑聚焦模式：不主动改缩放，节点过大时 CameraAnimator 内部会自动缩小
+		m_cameraAnimator->focusOn(item);
 	}
 }
 
@@ -3479,6 +3563,20 @@ void WarRoomMainWindow::showNodeHighlight(const std::string& nodeId, bool fromLe
 	m_highlightOverlay->syncGeometry();
 	m_highlightOverlay->raise();
 	m_highlightOverlay->showHighlight(containerPos, nodeItem, m_view, fromLeft);
+}
+
+void WarRoomMainWindow::showSearchPanel()
+{
+	if (!m_searchPanel) return;
+
+	// 从简处理：已显示 → 关闭；未显示 → 打开（重置位置、清空搜索）
+	if (m_searchPanel->isVisible()) {
+		m_searchPanel->closePanel();
+		return;
+	}
+
+	// 在 m_centralContainer 中央弹出
+	m_searchPanel->openAt();
 }
 void WarRoomMainWindow::onTitleBarMinimize()
 {

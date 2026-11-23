@@ -31,6 +31,7 @@
 #include "ui/CustomTitleBar.h"
 #include "ui/CustomSidebar.h"
 #include "ui/TodoSidebar.h"
+#include "ui/SearchPanel.h"
 #include "ui/WindowHelper.h"
 
 // 前向声明
@@ -203,6 +204,9 @@ private slots:
 	// 文档统计信息：点击"查看"弹出统计对话框
 	void onShowDocumentStats();
 
+	// Ctrl+H 打开浮层搜索面板
+	void showSearchPanel();
+
 private:
 	// ---- 底边栏（状态栏）辅助 ----
 	void setupStatusBar();      // 构建底边栏 UI
@@ -239,9 +243,14 @@ private:
 	void onNodeMoveFinished(const std::string& nodeId,
 		float oldX, float oldY, float newX, float newY);
 
-	// ---- 相机动画 ----
+	// ---- 相机动画 / 导航 ----
 	// 平滑聚焦到指定节点（用于侧栏点击聚焦）
 	void focusNodeAnimated(NodeGraphicsItem* item);
+	// 统一导航入口：按 nodeId 平滑聚焦节点。
+	// zoomIfFar=true 时，若当前缩放 < 0.5 会放大到 0.6（用于双击/跳转）；
+	// zoomIfFar=false 时只平滑居中、不主动改缩放（用于单击侧栏）。
+	// 连接线右键菜单、Ctrl+H 搜索跳转等都会复用此方法。
+	void navigateToNode(const std::string& nodeId, bool zoomIfFar = false);
 	// 用户开始拖动画布时中止相机动画
 	void abortCameraAnimation();
 
@@ -261,6 +270,8 @@ private:
 	// ---- 视图同步 ----
 	void syncAllItemsFromModel();   // 全量同步图形项与模型
 	void refreshLinks();            // 刷新所有连线位置
+	// 只刷新与指定节点相关的连线（默认包含其子树节点），避免交互过程全量遍历场景
+	void refreshLinksForNode(const std::string& nodeId, bool includeDescendants = true);
 	void refreshAllLinksZValue();   // 刷新所有连线的 Z 值
 
 	// ---- 节点查找 ----
@@ -326,6 +337,7 @@ private:
 	warroom::WarRoomModel m_model;
 
 	QHash<QString, NodeGraphicsItem*> m_nodeItems;  // 节点 ID -> 图形项映射
+	QHash<QString, LinkGraphicsItem*> m_linkItems;  // 连线 ID -> 图形项映射（替代热路径遍历场景）
 
 	QString m_currentFilePath;                      // 当前文件路径
 	std::string m_currentEditingNodeId;             // 当前编辑中的节点 ID
@@ -341,6 +353,9 @@ private:
 	QPushButton* m_readOnlyBtn = nullptr; // 只读模式切换按钮
 	TodoSidebar* m_todoSidebar = nullptr;   // 右侧待办侧边栏
 	QPushButton* m_todoToggleBtn = nullptr; // 待办侧边栏切换按钮
+
+	// ---- 浮层搜索面板（Ctrl+H）----
+	SearchPanel* m_searchPanel = nullptr;
 
 	// ---- 底边栏（状态栏）----
 	QWidget* m_statusBar = nullptr;         // 底边栏容器
@@ -359,6 +374,7 @@ private:
 	QAction* m_undoAction = nullptr;
 	QAction* m_redoAction = nullptr;
 	QAction* m_deleteAction = nullptr;
+	QAction* m_searchAction = nullptr;  // Ctrl+H 打开搜索面板
 
 	// ---- 键盘焦点管理 ----
 	FocusState m_keyboardFocusState = FocusState::CanvasFocus;  // 当前键盘焦点状态

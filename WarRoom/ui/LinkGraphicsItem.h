@@ -26,6 +26,7 @@ class LinkGraphicsItem : public QGraphicsObject
 
 public:
 	void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+	void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
 	void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;
 	/**
 	 * @param linkId 对应 WarLink::id
@@ -69,6 +70,8 @@ signals:
 	void labelEditRequested(const warroom::Uuid& linkId);
 	// 请求修改连线颜色
 	void colorChangeRequested(const warroom::Uuid& linkId, const QString& newColor);
+	// 请求视口导航到指定节点（连接线右键菜单/双击触发）
+	void navigateToNodeRequested(const std::string& nodeId, bool zoomIfFar);
 
 private:
 	// ---- 颜色映射 ----
